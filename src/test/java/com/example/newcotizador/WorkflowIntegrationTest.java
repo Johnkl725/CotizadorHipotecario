@@ -28,6 +28,7 @@ class WorkflowIntegrationTest {
     @Autowired CotizacionRepository quotes;
     @Autowired ClienteRepository clients;
     @Autowired UsuarioRepository users;
+    @Autowired AuditoriaCotizacionRepository audits;
 
     private static final String INPUT = """
         {"dni":"12345678","nombres":"Ana","apellidos":"Torres",
@@ -36,7 +37,7 @@ class WorkflowIntegrationTest {
         """;
 
     @BeforeEach void reset() {
-        quotes.deleteAll(); clients.deleteAll(); users.deleteAll();
+        audits.deleteAll(); quotes.deleteAll(); clients.deleteAll(); users.deleteAll();
         account("ejecutivo", "EJECUTIVO"); account("otro", "EJECUTIVO"); account("aprobador", "APROBADOR");
     }
 
