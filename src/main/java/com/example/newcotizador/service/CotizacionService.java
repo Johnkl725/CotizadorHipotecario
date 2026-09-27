@@ -23,11 +23,11 @@ public class CotizacionService {
     private final UsuarioRepository usuarios;
     private final CalculoService calculo;
     private final PoliticaProperties politica;
+    private final AuditoriaCotizacionRepository auditoria; // HU 3
 
     @Transactional(timeout = 10)
     public CotizacionResponse crear(CrearCotizacionRequest request, String username) {
         SimulacionResponse resultado = calculo.simular(request.simulacion());
-        // Reuse identity without silently changing client data visible in previous quotes.
         Cliente cliente = clientes.findByDni(request.dni()).orElseGet(() -> {
             Cliente nuevo = new Cliente();
             nuevo.setDni(request.dni()); nuevo.setNombres(request.nombres().strip()); nuevo.setApellidos(request.apellidos().strip());
@@ -48,6 +48,27 @@ public class CotizacionService {
         return respuesta(cotizaciones.saveAndFlush(c));
     }
 
+    // HU 1: Clonar Cotización Iterativa
+    @Transactional(timeout = 10)
+    public CotizacionResponse clonar(Integer idOriginal, String username) {
+        Cotizacion original = buscar(idOriginal);
+        if (!original.getEjecutivo().getUsername().equals(username)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "No puedes clonar cotizaciones de otros.");
+        }
+        Cotizacion clone = new Cotizacion();
+        clone.setCliente(original.getCliente()); clone.setEjecutivo(original.getEjecutivo());
+        clone.setValorInmueble(original.getValorInmueble()); clone.setCuotaInicial(original.getCuotaInicial());
+        clone.setPlazoMeses(original.getPlazoMeses()); clone.setMontoPrestamo(original.getMontoPrestamo());
+        clone.setLtvPorcentaje(original.getLtvPorcentaje()); clone.setTeaCalculada(original.getTeaCalculada());
+        clone.setCuotaMensualEstimada(original.getCuotaMensualEstimada()); clone.setIngresosMensuales(original.getIngresosMensuales());
+        clone.setDeudasMensuales(original.getDeudasMensuales()); clone.setScoreCrediticio(original.getScoreCrediticio());
+        clone.setDstiPorcentaje(original.getDstiPorcentaje()); clone.setEstado(EstadoCotizacion.BORRADOR);
+        clone.setFechaCreacion(LocalDateTime.now(ZoneOffset.UTC));
+        Cotizacion guardada = cotizaciones.saveAndFlush(clone);
+        guardarAuditoria(guardada, "COTIZACION_CLONADA", null, username);
+        return respuesta(guardada);
+    }
+
     @Transactional(readOnly = true, timeout = 5)
     public PaginaResponse<CotizacionResponse> propias(String username, int page, int size) {
         return PaginaResponse.of(cotizaciones.findByEjecutivoUsername(username, paginacion(page, size)).map(this::respuesta));
@@ -57,6 +78,7 @@ public class CotizacionService {
         if (estado == EstadoCotizacion.BORRADOR) throw new IllegalArgumentException("Los borradores son privados del ejecutivo.");
         return PaginaResponse.of(cotizaciones.findByEstado(estado, paginacion(page, size)).map(this::respuesta));
     }
+    
     @Transactional(timeout = 10)
     public CotizacionResponse solicitar(Integer id, SolicitudTasaRequest request, String username) {
         Cotizacion c = buscar(id);
@@ -68,8 +90,10 @@ public class CotizacionService {
         if (request.teaPreferencial().compareTo(c.getTeaCalculada()) >= 0) throw new IllegalArgumentException("La tasa preferencial debe ser menor que la TEA original.");
         c.setTeaPreferencialSolicitada(request.teaPreferencial()); c.setEstado(EstadoCotizacion.PENDIENTE_APROBACION);
         cotizaciones.flush();
+        guardarAuditoria(c, "TASA_PREFERENCIAL_SOLICITADA", request.teaPreferencial(), username); // HU 3
         return respuesta(c);
     }
+
     @Transactional(timeout = 10)
     public CotizacionResponse decidir(Integer id, DecisionRequest request, String username) {
         Cotizacion c = buscar(id);
@@ -77,26 +101,33 @@ public class CotizacionService {
         if (c.getEstado() != EstadoCotizacion.PENDIENTE_APROBACION) throw new BusinessException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente.");
         if (c.getEjecutivo().getUsername().equals(username)) throw new BusinessException(HttpStatus.FORBIDDEN, "No puedes decidir sobre tu propia cotización.");
         if (request.aprobar()) {
-            // Calculate from the immutable financial snapshot, never the current client profile.
             SimulacionResponse resultado = calculo.simularConTea(new SimulacionRequest(c.getValorInmueble(), c.getCuotaInicial(),
                 c.getPlazoMeses(), c.getIngresosMensuales(), c.getDeudasMensuales(), c.getScoreCrediticio()), c.getTeaPreferencialSolicitada());
             c.setCuotaMensualEstimada(resultado.cuotaMensual()); c.setDstiPorcentaje(resultado.dstiPorcentaje());
             c.setEstado(EstadoCotizacion.APROBADA);
-        } else c.setEstado(EstadoCotizacion.RECHAZADA);
+            guardarAuditoria(c, "TASA_PREFERENCIAL_APROBADA", c.getTeaPreferencialSolicitada(), username); // HU 3
+        } else {
+            c.setEstado(EstadoCotizacion.RECHAZADA);
+            guardarAuditoria(c, "TASA_PREFERENCIAL_RECHAZADA", null, username); // HU 3
+        }
         c.setAprobador(usuario(username)); c.setComentarioDecision(request.comentario().strip());
         c.setFechaDecision(LocalDateTime.now(ZoneOffset.UTC));
         cotizaciones.flush();
         return respuesta(c);
     }
-    private Cotizacion buscar(Integer id) {
-        return cotizaciones.findById(id).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "No se encontró la cotización."));
+    
+    // Método auxiliar para Auditoría (HU 3)
+    private void guardarAuditoria(Cotizacion c, String accion, BigDecimal teaNueva, String usuarioRes) {
+        AuditoriaCotizacion aud = new AuditoriaCotizacion();
+        aud.setCotizacion(c); aud.setAccion(accion); aud.setTeaAnterior(c.getTeaCalculada());
+        aud.setTeaNueva(teaNueva); aud.setUsuarioResponsable(usuarioRes);
+        aud.setFechaEvento(LocalDateTime.now(ZoneOffset.UTC));
+        auditoria.save(aud);
     }
-    private Usuario usuario(String username) {
-        return usuarios.findByUsername(username).orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Inicia sesión nuevamente."));
-    }
-    private void validarVersion(Cotizacion c, Long version) {
-        if (!c.getVersion().equals(version)) throw new BusinessException(HttpStatus.CONFLICT, "La cotización cambió. Actualiza la lista antes de continuar.");
-    }
+
+    private Cotizacion buscar(Integer id) { return cotizaciones.findById(id).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "No se encontró la cotización.")); }
+    private Usuario usuario(String username) { return usuarios.findByUsername(username).orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Inicia sesión nuevamente.")); }
+    private void validarVersion(Cotizacion c, Long version) { if (!c.getVersion().equals(version)) throw new BusinessException(HttpStatus.CONFLICT, "La cotización cambió. Actualiza la lista antes de continuar."); }
     private Pageable paginacion(int page, int size) {
         if (page < 0 || page > 10000 || size < 1 || size > 50) throw new IllegalArgumentException("Página o tamaño fuera de rango (máximo 50 registros).");
         return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "fechaCreacion", "id"));
