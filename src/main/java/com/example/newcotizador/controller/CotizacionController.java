@@ -18,4 +18,7 @@ public class CotizacionController {
         @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "12") int size) { return cotizaciones.propias(auth.getName(), page, size); }
     @PostMapping("/cotizaciones/{id}/solicitud") public CotizacionResponse solicitar(@PathVariable Integer id,
         @Valid @RequestBody SolicitudTasaRequest request, Authentication auth) { return cotizaciones.solicitar(id, request, auth.getName()); }
+    @PostMapping("/cotizaciones/{id}/clonar") public CotizacionResponse clonar(@PathVariable Integer id, Authentication auth) { 
+        return cotizaciones.clonar(id, auth.getName()); 
+    }
 }

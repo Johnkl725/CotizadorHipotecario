@@ -33,6 +33,20 @@
     if (!isExecutive) { const details = element('div', 'metrics'); details.append(metric('Ingreso mensual', money(q.ingresosMensuales)), metric('Otras cuotas', money(q.deudasMensuales)), metric('Valor del inmueble', money(q.valorInmueble)), metric('Cuota inicial', money(q.cuotaInicial))); card.append(details); card.append(element('p', 'quote-note', `Ejecutivo: ${q.ejecutivo || '—'}`)); }
     if(q.motivos?.length) card.append(element('p', 'quote-note', q.motivos.join(' · ')));
     if(q.comentarioDecision) card.append(element('p', 'quote-note', `Decisión de ${q.aprobador || 'aprobador'}: ${q.comentarioDecision}`));
+    if(isExecutive && (q.estado === 'BORRADOR' || q.estado === 'RECHAZADA')) {
+      const cloneBtn = element('button', 'button', 'Clonar para ajustar ↗');
+      cloneBtn.style.marginTop = '0.5rem'; cloneBtn.style.marginBottom = '0.5rem';
+      cloneBtn.type = 'button';
+      cloneBtn.addEventListener('click', () => {
+        busy(cloneBtn, async () => {
+          const clone = await api(`/api/cotizaciones/${q.id}/clonar`, {});
+          message(`Propuesta clonada exitosamente (Borrador #${clone.id}).`);
+          page = 0;
+          await loadQuotes();
+        });
+      });
+      card.append(cloneBtn);
+    }
     if(isExecutive && q.estado === 'BORRADOR') {
       if(q.elegiblePreferencial) {
         const form = element('form', 'quote-actions'); const label = element('label', '', 'TEA preferencial solicitada (%)'); const input = element('input'); input.type='number'; input.min='0'; input.max=String(q.teaCalculada); input.step='0.01'; input.required=true; input.placeholder='Ingresa una tasa menor a la vigente'; label.append(input); const button = element('button', 'button secondary', 'Solicitar tasa preferencial →'); button.type='submit'; form.append(label,button);
