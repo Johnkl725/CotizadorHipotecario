@@ -1,0 +1,13 @@
+package com.example.newcotizador.repository;
+import com.example.newcotizador.entity.*;
+import java.util.Optional;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.repository.*;
+public interface CotizacionRepository extends JpaRepository<Cotizacion, Integer> {
+    @EntityGraph(attributePaths = {"cliente", "ejecutivo", "aprobador"})
+    Page<Cotizacion> findByEjecutivoUsername(String username, Pageable pageable);
+    @EntityGraph(attributePaths = {"cliente", "ejecutivo", "aprobador"})
+    Page<Cotizacion> findByEstado(EstadoCotizacion estado, Pageable pageable);
+    @Override @EntityGraph(attributePaths = {"cliente", "ejecutivo", "aprobador"})
+    Optional<Cotizacion> findById(Integer id);
+}

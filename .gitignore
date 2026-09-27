@@ -1,0 +1,28 @@
+# Build and IDE
+.gradle/
+build/
+out/
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Environment and Logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Artifacts and sensitive data (Credentials, DB backups, etc.)
+artifacts/
+!artifacts/.gitkeep
+
+# Ignore AI Agent rules and design files to avoid polluting the repository
+*.md
+!README.md
+!docs/*.md
+
+# Mac/Windows system files
+.DS_Store
+Thumbs.db
