@@ -1,5 +1,5 @@
-package com.example.newcotizador.repository;
-import com.example.newcotizador.entity.*;
+package com.example.newcotizador.infrastructure.adapter.out.persistence;
+import com.example.newcotizador.domain.model.*;
 import java.util.Optional;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.*;

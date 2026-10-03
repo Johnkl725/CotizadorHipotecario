@@ -1,7 +1,7 @@
 package com.example.newcotizador.config;
 
-import com.example.newcotizador.entity.Usuario;
-import com.example.newcotizador.repository.UsuarioRepository;
+import com.example.newcotizador.domain.model.Usuario;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

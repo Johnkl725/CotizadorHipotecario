@@ -1,7 +1,7 @@
-package com.example.newcotizador.controller;
+package com.example.newcotizador.infrastructure.adapter.in.web;
 import com.example.newcotizador.dto.*;
-import com.example.newcotizador.entity.EstadoCotizacion;
-import com.example.newcotizador.service.CotizacionService;
+import com.example.newcotizador.domain.model.EstadoCotizacion;
+import com.example.newcotizador.application.service.CotizacionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;

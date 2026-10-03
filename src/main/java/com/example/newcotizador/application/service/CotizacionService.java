@@ -1,10 +1,10 @@
-package com.example.newcotizador.service;
+package com.example.newcotizador.application.service;
 
 import com.example.newcotizador.config.PoliticaProperties;
 import com.example.newcotizador.dto.*;
-import com.example.newcotizador.entity.*;
+import com.example.newcotizador.domain.model.*;
 import com.example.newcotizador.exception.BusinessException;
-import com.example.newcotizador.repository.*;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;

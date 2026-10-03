@@ -1,4 +1,4 @@
-package com.example.newcotizador.service;
+package com.example.newcotizador.application.service;
 
 import com.example.newcotizador.config.PoliticaProperties;
 import com.example.newcotizador.dto.SimulacionRequest;

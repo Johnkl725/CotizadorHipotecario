@@ -1,7 +1,7 @@
 package com.example.newcotizador;
 
-import com.example.newcotizador.entity.Usuario;
-import com.example.newcotizador.repository.*;
+import com.example.newcotizador.domain.model.Usuario;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.*;
 import java.math.BigDecimal;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;

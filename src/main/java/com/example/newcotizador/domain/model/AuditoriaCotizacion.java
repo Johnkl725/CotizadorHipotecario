@@ -1,4 +1,4 @@
-package com.example.newcotizador.entity;
+package com.example.newcotizador.domain.model;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
