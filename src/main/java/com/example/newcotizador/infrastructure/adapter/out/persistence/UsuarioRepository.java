@@ -1,7 +1,7 @@
 package com.example.newcotizador.infrastructure.adapter.out.persistence;
-import com.example.newcotizador.domain.model.Usuario;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.entity.UsuarioJpaEntity;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
-    Optional<Usuario> findByUsername(String username);
+public interface UsuarioRepository extends JpaRepository<UsuarioJpaEntity, Integer> {
+    Optional<UsuarioJpaEntity> findByUsername(String username);
 }

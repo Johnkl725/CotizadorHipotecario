@@ -1,7 +1,7 @@
 package com.example.newcotizador.infrastructure.adapter.out.persistence;
 
-import com.example.newcotizador.domain.model.AuditoriaCotizacion;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.entity.AuditoriaCotizacionJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface AuditoriaCotizacionRepository extends JpaRepository<AuditoriaCotizacion, Integer> {
+public interface AuditoriaCotizacionRepository extends JpaRepository<AuditoriaCotizacionJpaEntity, Integer> {
 }

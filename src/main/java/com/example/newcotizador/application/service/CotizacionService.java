@@ -4,7 +4,8 @@ import com.example.newcotizador.config.PoliticaProperties;
 import com.example.newcotizador.dto.*;
 import com.example.newcotizador.domain.model.*;
 import com.example.newcotizador.exception.BusinessException;
-import com.example.newcotizador.infrastructure.adapter.out.persistence.*;
+import com.example.newcotizador.domain.port.out.*;
+import com.example.newcotizador.domain.port.in.CotizacionUseCase;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -17,13 +18,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service @RequiredArgsConstructor
-public class CotizacionService {
-    private final CotizacionRepository cotizaciones;
-    private final ClienteRepository clientes;
-    private final UsuarioRepository usuarios;
+public class CotizacionService implements CotizacionUseCase {
+    private final CotizacionRepositoryPort cotizaciones;
+    private final ClienteRepositoryPort clientes;
+    private final UsuarioRepositoryPort usuarios;
     private final CalculoService calculo;
     private final PoliticaProperties politica;
-    private final AuditoriaCotizacionRepository auditoria; // HU 3
+    private final AuditoriaRepositoryPort auditoria; // HU 3
 
     @Transactional(timeout = 10)
     public CotizacionResponse crear(CrearCotizacionRequest request, String username) {
@@ -32,7 +33,7 @@ public class CotizacionService {
             Cliente nuevo = new Cliente();
             nuevo.setDni(request.dni()); nuevo.setNombres(request.nombres().strip()); nuevo.setApellidos(request.apellidos().strip());
             nuevo.setIngresosMensuales(request.ingresosMensuales()); nuevo.setScoreCrediticio(request.scoreCrediticio());
-            return clientes.saveAndFlush(nuevo);
+            return clientes.save(nuevo);
         });
         if (!cliente.getNombres().equalsIgnoreCase(request.nombres().strip()) || !cliente.getApellidos().equalsIgnoreCase(request.apellidos().strip())) {
             throw new BusinessException(HttpStatus.CONFLICT, "El DNI ya está registrado con otros nombres. Verifica la identidad del cliente.");
@@ -151,3 +152,5 @@ public class CotizacionService {
             c.getAprobador() == null ? null : c.getAprobador().getUsername(), motivos.isEmpty(), motivos);
     }
 }
+
+
