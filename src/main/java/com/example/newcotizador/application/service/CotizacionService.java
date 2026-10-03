@@ -22,13 +22,11 @@ public class CotizacionService implements CotizacionUseCase {
     private final CotizacionRepositoryPort cotizaciones;
     private final ClienteRepositoryPort clientes;
     private final UsuarioRepositoryPort usuarios;
-    private final CalculoService calculo;
     private final PoliticaProperties politica;
     private final AuditoriaRepositoryPort auditoria; // HU 3
 
     @Transactional(timeout = 10)
     public CotizacionResponse crear(CrearCotizacionRequest request, String username) {
-        SimulacionResponse resultado = calculo.simular(request.simulacion());
         Cliente cliente = clientes.findByDni(request.dni()).orElseGet(() -> {
             Cliente nuevo = new Cliente();
             nuevo.setDni(request.dni()); nuevo.setNombres(request.nombres().strip()); nuevo.setApellidos(request.apellidos().strip());
@@ -41,10 +39,12 @@ public class CotizacionService implements CotizacionUseCase {
         Cotizacion c = new Cotizacion();
         c.setCliente(cliente); c.setEjecutivo(usuario(username));
         c.setValorInmueble(request.valorInmueble()); c.setCuotaInicial(request.cuotaInicial()); c.setPlazoMeses(request.plazoMeses());
-        c.setMontoPrestamo(resultado.montoPrestamo()); c.setLtvPorcentaje(resultado.ltvPorcentaje());
-        c.setTeaCalculada(resultado.tea()); c.setCuotaMensualEstimada(resultado.cuotaMensual());
         c.setIngresosMensuales(request.ingresosMensuales()); c.setDeudasMensuales(request.deudasMensuales());
-        c.setScoreCrediticio(request.scoreCrediticio()); c.setDstiPorcentaje(resultado.dstiPorcentaje());
+        c.setScoreCrediticio(request.scoreCrediticio()); 
+
+        PoliticaRiesgo pr = new PoliticaRiesgo(politica.teaBase(), politica.cuotaInicialMinimaPorcentaje(), politica.scoreMinimo(), politica.dstiMaximo(), politica.plazoMaximoMeses());
+        c.simular(pr);
+
         c.setEstado(EstadoCotizacion.BORRADOR); c.setFechaCreacion(LocalDateTime.now(ZoneOffset.UTC));
         return respuesta(cotizaciones.saveAndFlush(c));
     }
@@ -102,9 +102,8 @@ public class CotizacionService implements CotizacionUseCase {
         if (c.getEstado() != EstadoCotizacion.PENDIENTE_APROBACION) throw new BusinessException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente.");
         if (c.getEjecutivo().getUsername().equals(username)) throw new BusinessException(HttpStatus.FORBIDDEN, "No puedes decidir sobre tu propia cotización.");
         if (request.aprobar()) {
-            SimulacionResponse resultado = calculo.simularConTea(new SimulacionRequest(c.getValorInmueble(), c.getCuotaInicial(),
-                c.getPlazoMeses(), c.getIngresosMensuales(), c.getDeudasMensuales(), c.getScoreCrediticio()), c.getTeaPreferencialSolicitada());
-            c.setCuotaMensualEstimada(resultado.cuotaMensual()); c.setDstiPorcentaje(resultado.dstiPorcentaje());
+            PoliticaRiesgo pr = new PoliticaRiesgo(politica.teaBase(), politica.cuotaInicialMinimaPorcentaje(), politica.scoreMinimo(), politica.dstiMaximo(), politica.plazoMaximoMeses());
+            c.simularConTea(pr, c.getTeaPreferencialSolicitada());
             c.setEstado(EstadoCotizacion.APROBADA);
             guardarAuditoria(c, "TASA_PREFERENCIAL_APROBADA", c.getTeaPreferencialSolicitada(), username); // HU 3
         } else {
