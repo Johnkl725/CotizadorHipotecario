@@ -2,9 +2,9 @@ name: DEV CI/CD
 
 on:
   push:
-    branches: [ "develop", "dev" ]
+    branches: [ "develop", "dev", "DEV" ]
   pull_request:
-    branches: [ "develop", "dev" ]
+    branches: [ "develop", "dev", "DEV" ]
 
 jobs:
   build:
