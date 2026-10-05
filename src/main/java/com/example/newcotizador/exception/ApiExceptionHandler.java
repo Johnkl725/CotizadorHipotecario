@@ -16,7 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(basePackages = "com.example.newcotizador.controller")
+@RestControllerAdvice(basePackages = "com.example.newcotizador.infrastructure.adapter.in.web")
 @Slf4j
 public class ApiExceptionHandler {
     private ResponseEntity<ApiErrorResponse> error(HttpStatus status, String message, Map<String,String> fields) {

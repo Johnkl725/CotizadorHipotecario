@@ -42,7 +42,8 @@ class WorkflowIntegrationTest {
     }
 
     private void account(String name, String role) {
-        Usuario u = new Usuario(); u.setUsername(name); u.setRol(role);
+        com.example.newcotizador.infrastructure.adapter.out.persistence.entity.UsuarioJpaEntity u = new com.example.newcotizador.infrastructure.adapter.out.persistence.entity.UsuarioJpaEntity();
+        u.setUsername(name); u.setRol(role);
         // Authentication is injected by Spring Security test support; hashes are never used.
         u.setPasswordHash("unused-test-hash"); users.save(u);
     }

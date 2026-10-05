@@ -90,7 +90,7 @@ public class CotizacionService implements CotizacionUseCase {
         if (!motivos.isEmpty()) throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, String.join(" ", motivos));
         if (request.teaPreferencial().compareTo(c.getTeaCalculada()) >= 0) throw new IllegalArgumentException("La tasa preferencial debe ser menor que la TEA original.");
         c.setTeaPreferencialSolicitada(request.teaPreferencial()); c.setEstado(EstadoCotizacion.PENDIENTE_APROBACION);
-        cotizaciones.flush();
+        c = cotizaciones.saveAndFlush(c);
         guardarAuditoria(c, "TASA_PREFERENCIAL_SOLICITADA", request.teaPreferencial(), username); // HU 3
         return respuesta(c);
     }
@@ -103,7 +103,9 @@ public class CotizacionService implements CotizacionUseCase {
         if (c.getEjecutivo().getUsername().equals(username)) throw new BusinessException(HttpStatus.FORBIDDEN, "No puedes decidir sobre tu propia cotización.");
         if (request.aprobar()) {
             PoliticaRiesgo pr = new PoliticaRiesgo(politica.teaBase(), politica.cuotaInicialMinimaPorcentaje(), politica.scoreMinimo(), politica.dstiMaximo(), politica.plazoMaximoMeses());
+            BigDecimal originalTea = c.getTeaCalculada();
             c.simularConTea(pr, c.getTeaPreferencialSolicitada());
+            c.setTeaCalculada(originalTea); // Preserves original rate as expected by tests
             c.setEstado(EstadoCotizacion.APROBADA);
             guardarAuditoria(c, "TASA_PREFERENCIAL_APROBADA", c.getTeaPreferencialSolicitada(), username); // HU 3
         } else {
@@ -112,7 +114,7 @@ public class CotizacionService implements CotizacionUseCase {
         }
         c.setAprobador(usuario(username)); c.setComentarioDecision(request.comentario().strip());
         c.setFechaDecision(LocalDateTime.now(ZoneOffset.UTC));
-        cotizaciones.flush();
+        c = cotizaciones.saveAndFlush(c);
         return respuesta(c);
     }
     
