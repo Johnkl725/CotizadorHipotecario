@@ -1,10 +1,11 @@
-package com.example.newcotizador.service;
+package com.example.newcotizador.application.service;
 
 import com.example.newcotizador.config.PoliticaProperties;
 import com.example.newcotizador.dto.*;
-import com.example.newcotizador.entity.*;
+import com.example.newcotizador.domain.model.*;
 import com.example.newcotizador.exception.BusinessException;
-import com.example.newcotizador.repository.*;
+import com.example.newcotizador.domain.port.out.*;
+import com.example.newcotizador.domain.port.in.CotizacionUseCase;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -17,22 +18,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service @RequiredArgsConstructor
-public class CotizacionService {
-    private final CotizacionRepository cotizaciones;
-    private final ClienteRepository clientes;
-    private final UsuarioRepository usuarios;
-    private final CalculoService calculo;
+public class CotizacionService implements CotizacionUseCase {
+    private final CotizacionRepositoryPort cotizaciones;
+    private final ClienteRepositoryPort clientes;
+    private final UsuarioRepositoryPort usuarios;
     private final PoliticaProperties politica;
-    private final AuditoriaCotizacionRepository auditoria; // HU 3
+    private final AuditoriaRepositoryPort auditoria; // HU 3
 
     @Transactional(timeout = 10)
     public CotizacionResponse crear(CrearCotizacionRequest request, String username) {
-        SimulacionResponse resultado = calculo.simular(request.simulacion());
         Cliente cliente = clientes.findByDni(request.dni()).orElseGet(() -> {
             Cliente nuevo = new Cliente();
             nuevo.setDni(request.dni()); nuevo.setNombres(request.nombres().strip()); nuevo.setApellidos(request.apellidos().strip());
             nuevo.setIngresosMensuales(request.ingresosMensuales()); nuevo.setScoreCrediticio(request.scoreCrediticio());
-            return clientes.saveAndFlush(nuevo);
+            return clientes.save(nuevo);
         });
         if (!cliente.getNombres().equalsIgnoreCase(request.nombres().strip()) || !cliente.getApellidos().equalsIgnoreCase(request.apellidos().strip())) {
             throw new BusinessException(HttpStatus.CONFLICT, "El DNI ya está registrado con otros nombres. Verifica la identidad del cliente.");
@@ -40,10 +39,12 @@ public class CotizacionService {
         Cotizacion c = new Cotizacion();
         c.setCliente(cliente); c.setEjecutivo(usuario(username));
         c.setValorInmueble(request.valorInmueble()); c.setCuotaInicial(request.cuotaInicial()); c.setPlazoMeses(request.plazoMeses());
-        c.setMontoPrestamo(resultado.montoPrestamo()); c.setLtvPorcentaje(resultado.ltvPorcentaje());
-        c.setTeaCalculada(resultado.tea()); c.setCuotaMensualEstimada(resultado.cuotaMensual());
         c.setIngresosMensuales(request.ingresosMensuales()); c.setDeudasMensuales(request.deudasMensuales());
-        c.setScoreCrediticio(request.scoreCrediticio()); c.setDstiPorcentaje(resultado.dstiPorcentaje());
+        c.setScoreCrediticio(request.scoreCrediticio()); 
+
+        PoliticaRiesgo pr = new PoliticaRiesgo(politica.teaBase(), politica.cuotaInicialMinimaPorcentaje(), politica.scoreMinimo(), politica.dstiMaximo(), politica.plazoMaximoMeses());
+        c.simular(pr);
+
         c.setEstado(EstadoCotizacion.BORRADOR); c.setFechaCreacion(LocalDateTime.now(ZoneOffset.UTC));
         return respuesta(cotizaciones.saveAndFlush(c));
     }
@@ -89,7 +90,7 @@ public class CotizacionService {
         if (!motivos.isEmpty()) throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, String.join(" ", motivos));
         if (request.teaPreferencial().compareTo(c.getTeaCalculada()) >= 0) throw new IllegalArgumentException("La tasa preferencial debe ser menor que la TEA original.");
         c.setTeaPreferencialSolicitada(request.teaPreferencial()); c.setEstado(EstadoCotizacion.PENDIENTE_APROBACION);
-        cotizaciones.flush();
+        c = cotizaciones.saveAndFlush(c);
         guardarAuditoria(c, "TASA_PREFERENCIAL_SOLICITADA", request.teaPreferencial(), username); // HU 3
         return respuesta(c);
     }
@@ -101,9 +102,10 @@ public class CotizacionService {
         if (c.getEstado() != EstadoCotizacion.PENDIENTE_APROBACION) throw new BusinessException(HttpStatus.CONFLICT, "La solicitud ya no está pendiente.");
         if (c.getEjecutivo().getUsername().equals(username)) throw new BusinessException(HttpStatus.FORBIDDEN, "No puedes decidir sobre tu propia cotización.");
         if (request.aprobar()) {
-            SimulacionResponse resultado = calculo.simularConTea(new SimulacionRequest(c.getValorInmueble(), c.getCuotaInicial(),
-                c.getPlazoMeses(), c.getIngresosMensuales(), c.getDeudasMensuales(), c.getScoreCrediticio()), c.getTeaPreferencialSolicitada());
-            c.setCuotaMensualEstimada(resultado.cuotaMensual()); c.setDstiPorcentaje(resultado.dstiPorcentaje());
+            PoliticaRiesgo pr = new PoliticaRiesgo(politica.teaBase(), politica.cuotaInicialMinimaPorcentaje(), politica.scoreMinimo(), politica.dstiMaximo(), politica.plazoMaximoMeses());
+            BigDecimal originalTea = c.getTeaCalculada();
+            c.simularConTea(pr, c.getTeaPreferencialSolicitada());
+            c.setTeaCalculada(originalTea); // Preserves original rate as expected by tests
             c.setEstado(EstadoCotizacion.APROBADA);
             guardarAuditoria(c, "TASA_PREFERENCIAL_APROBADA", c.getTeaPreferencialSolicitada(), username); // HU 3
         } else {
@@ -112,7 +114,7 @@ public class CotizacionService {
         }
         c.setAprobador(usuario(username)); c.setComentarioDecision(request.comentario().strip());
         c.setFechaDecision(LocalDateTime.now(ZoneOffset.UTC));
-        cotizaciones.flush();
+        c = cotizaciones.saveAndFlush(c);
         return respuesta(c);
     }
     
@@ -151,3 +153,5 @@ public class CotizacionService {
             c.getAprobador() == null ? null : c.getAprobador().getUsername(), motivos.isEmpty(), motivos);
     }
 }
+
+

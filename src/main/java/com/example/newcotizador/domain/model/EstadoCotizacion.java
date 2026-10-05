@@ -1,2 +1,2 @@
-package com.example.newcotizador.entity;
+package com.example.newcotizador.domain.model;
 public enum EstadoCotizacion { BORRADOR, PENDIENTE_APROBACION, APROBADA, RECHAZADA }

@@ -1,7 +1,7 @@
 package com.example.newcotizador;
 
-import com.example.newcotizador.entity.Usuario;
-import com.example.newcotizador.repository.*;
+import com.example.newcotizador.domain.model.Usuario;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.*;
 import java.math.BigDecimal;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,7 +42,8 @@ class WorkflowIntegrationTest {
     }
 
     private void account(String name, String role) {
-        Usuario u = new Usuario(); u.setUsername(name); u.setRol(role);
+        com.example.newcotizador.infrastructure.adapter.out.persistence.entity.UsuarioJpaEntity u = new com.example.newcotizador.infrastructure.adapter.out.persistence.entity.UsuarioJpaEntity();
+        u.setUsername(name); u.setRol(role);
         // Authentication is injected by Spring Security test support; hashes are never used.
         u.setPasswordHash("unused-test-hash"); users.save(u);
     }

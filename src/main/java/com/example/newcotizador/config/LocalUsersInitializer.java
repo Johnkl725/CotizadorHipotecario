@@ -1,7 +1,7 @@
 package com.example.newcotizador.config;
 
-import com.example.newcotizador.entity.Usuario;
-import com.example.newcotizador.repository.UsuarioRepository;
+import com.example.newcotizador.domain.model.Usuario;
+import com.example.newcotizador.domain.port.out.UsuarioRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Explicitly enabled local bootstrap. Never creates accounts with default passwords. */
 @Component @Profile("local") @RequiredArgsConstructor
 public class LocalUsersInitializer implements ApplicationRunner {
-    private final UsuarioRepository usuarios;
+    private final UsuarioRepositoryPort usuarios;
     private final PasswordEncoder encoder;
     private final Environment environment;
     @Override @Transactional
@@ -37,3 +37,4 @@ public class LocalUsersInitializer implements ApplicationRunner {
         usuarios.save(user);
     }
 }
+

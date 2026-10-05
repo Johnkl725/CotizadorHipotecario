@@ -1,6 +1,6 @@
 package com.example.newcotizador.config;
 
-import com.example.newcotizador.repository.UsuarioRepository;
+import com.example.newcotizador.infrastructure.adapter.out.persistence.UsuarioRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;

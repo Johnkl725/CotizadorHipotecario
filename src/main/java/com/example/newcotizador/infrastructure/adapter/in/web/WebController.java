@@ -1,4 +1,4 @@
-package com.example.newcotizador.controller;
+package com.example.newcotizador.infrastructure.adapter.in.web;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
