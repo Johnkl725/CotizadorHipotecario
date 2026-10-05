@@ -1,7 +1,7 @@
 # Build and IDE
 .gradle/
 build/
-out/
+/out/
 .idea/
 *.iml
 *.ipr
