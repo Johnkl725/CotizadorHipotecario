@@ -38,3 +38,16 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// Package the SPA with the API so cookies and CSRF stay on the same origin.
+tasks.register('buildFrontend', Exec) {
+    workingDir 'frontend-angular'
+    commandLine(System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm', 'run', 'build')
+    inputs.dir('frontend-angular/src')
+    inputs.file('frontend-angular/angular.json')
+    outputs.dir('frontend-angular/dist/frontend-angular/browser')
+}
+tasks.named('bootJar') {
+    dependsOn tasks.named('buildFrontend')
+    from('frontend-angular/dist/frontend-angular/browser') { into 'BOOT-INF/classes/static' }
+}

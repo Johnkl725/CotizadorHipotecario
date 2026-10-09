@@ -24,6 +24,8 @@ public class ApiExceptionHandler {
     }
     @ExceptionHandler(BusinessException.class)
     ResponseEntity<ApiErrorResponse> business(BusinessException ex) { return error(ex.getStatus(), ex.getMessage(), Map.of()); }
+    @ExceptionHandler(IllegalStateException.class)
+    ResponseEntity<ApiErrorResponse> state(IllegalStateException ex) { return error(HttpStatus.CONFLICT, ex.getMessage(), Map.of()); }
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiErrorResponse> validation(MethodArgumentNotValidException ex) {
         Map<String,String> fields = new LinkedHashMap<>();

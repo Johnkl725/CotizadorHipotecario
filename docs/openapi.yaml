@@ -1,663 +1,540 @@
 openapi: 3.0.3
 info:
-  title: UMBRAL · API de cotización hipotecaria
-  version: 1.0.0
-  description: 'Contrato del backend New_cotizador. Tasas TEA/TEM y ratios LTV/DSTI
-    se expresan como porcentajes. Importes en PEN. La simulación aplica método francés;
-    excluye seguros y comisiones. Política inicial configurable de demostración.
-
-
-    Autenticación: abrir GET /login para obtener el formulario y su token CSRF; enviar
-    POST /login (application/x-www-form-urlencoded) con username, password y _csrf.
-    Conservar cookie JSESSIONID. GET /api/session devuelve el token CSRF y el nombre
-    de header que debe enviarse en cada POST JSON. POST /logout requiere CSRF. Las
-    rutas de formulario están fuera del contrato JSON.
-
-
-    No reintentar automáticamente POST /api/cotizaciones tras una respuesta incierta:
-    la creación no implementa claves de idempotencia. Los cambios de estado requieren
-    la última version leída.'
+  title: Umbral - Solicitudes V2
+  version: 2.0.0
+  description: 'API de sesion y CSRF. Cuerpo invalido: 400; inexistente o ajeno: 404;
+    indisponibilidad: 503. Nunca acepta autoridad desde IDs enviados por el cliente.'
 servers:
 - url: /
 security:
-- SessionCookie: []
+- session: []
 paths:
+  /api/csrf:
+    get:
+      summary: Obtener token CSRF para login y mutaciones
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  headerName:
+                    type: string
+                required: []
+  /api/login:
+    post:
+      summary: Login de servidor; rol obtenido desde la cuenta
+      security:
+      - csrf: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+              required:
+              - username
+              - password
+      responses:
+        '200':
+          description: Sesion autenticada; renovar CSRF despues del login
+        '401':
+          description: Credenciales invalidas
+        '403':
+          description: CSRF invalido
+  /api/logout:
+    post:
+      summary: Invalidar sesion
+      security:
+      - session: []
+        csrf: []
+      responses:
+        '204':
+          description: Sesion cerrada
   /api/session:
     get:
-      summary: Obtener usuario y token CSRF
-      description: 'Rol requerido: EJECUTIVO o APROBADOR.'
-      tags:
-      - Sesión
+      summary: Identidad autenticada
       responses:
         '200':
-          description: Operación completada.
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionResponse'
+                $ref: '#/components/schemas/Empleado'
         '401':
-          $ref: '#/components/responses/401'
+          description: Sesion invalida
         '403':
-          $ref: '#/components/responses/403'
-        '500':
-          $ref: '#/components/responses/500'
-  /api/politica:
-    get:
-      summary: Consultar política vigente
-      description: 'Rol requerido: EJECUTIVO o APROBADOR.'
-      tags:
-      - Sesión
-      responses:
-        '200':
-          description: Operación completada.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PoliticaResponse'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '500':
-          $ref: '#/components/responses/500'
-  /api/simulaciones:
-    post:
-      summary: Calcular sin persistir
-      description: 'Rol requerido: EJECUTIVO.'
-      tags:
-      - Ejecutivo
-      parameters:
-      - $ref: '#/components/parameters/CsrfToken'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SimulacionRequest'
-      responses:
-        '200':
-          description: Operación completada.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SimulacionResponse'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '500':
-          $ref: '#/components/responses/500'
-  /api/cotizaciones:
-    get:
-      summary: Listar cartera propia, orden fecha/id descendente
-      description: 'Rol requerido: EJECUTIVO.'
-      tags:
-      - Ejecutivo
-      responses:
-        '200':
-          description: Operación completada.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginaCotizaciones'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '500':
-          $ref: '#/components/responses/500'
-        '503':
-          $ref: '#/components/responses/503'
-      parameters:
-      - $ref: '#/components/parameters/Page'
-      - $ref: '#/components/parameters/Size'
-    post:
-      summary: Crear cotización en BORRADOR
-      description: 'Rol requerido: EJECUTIVO.'
-      tags:
-      - Ejecutivo
-      parameters:
-      - $ref: '#/components/parameters/CsrfToken'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CrearCotizacionRequest'
-      responses:
-        '201':
-          description: Operación completada.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CotizacionResponse'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
+          description: Rol o CSRF no autorizado
         '409':
-          $ref: '#/components/responses/409'
-        '500':
-          $ref: '#/components/responses/500'
-        '503':
-          $ref: '#/components/responses/503'
-  /api/cotizaciones/{id}/solicitud:
-    parameters:
-    - $ref: '#/components/parameters/Id'
-    post:
-      summary: 'Solicitar tasa: BORRADOR → PENDIENTE_APROBACION'
-      description: 'Rol requerido: EJECUTIVO.'
-      tags:
-      - Ejecutivo
-      parameters:
-      - $ref: '#/components/parameters/CsrfToken'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SolicitudTasaRequest'
-      responses:
-        '200':
-          description: Operación completada.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CotizacionResponse'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '409':
-          $ref: '#/components/responses/409'
-        '422':
-          $ref: '#/components/responses/422'
-        '500':
-          $ref: '#/components/responses/500'
-        '503':
-          $ref: '#/components/responses/503'
-  /api/aprobaciones:
+          description: Conflicto de version, estado o integridad
+  /api/productos:
     get:
-      summary: Listar bandeja, orden fecha/id descendente
-      description: 'Rol requerido: APROBADOR.'
-      tags:
-      - Aprobador
+      summary: Catalogo de productos
       responses:
         '200':
-          description: Operación completada.
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginaCotizaciones'
-        '400':
-          $ref: '#/components/responses/400'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Producto'
         '401':
-          $ref: '#/components/responses/401'
+          description: Sesion invalida
         '403':
-          $ref: '#/components/responses/403'
-        '500':
-          $ref: '#/components/responses/500'
-        '503':
-          $ref: '#/components/responses/503'
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+  /api/clientes:
+    get:
+      summary: 'Clientes: solo ejecutivo, maximo 20'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cliente'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
       parameters:
-      - $ref: '#/components/parameters/Page'
-      - $ref: '#/components/parameters/Size'
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+  /api/solicitudes:
+    get:
+      summary: Cartera propia para ejecutivo; cartera completa para gestor
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pagina'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 12
       - name: estado
         in: query
         schema:
           type: string
-          enum:
-          - PENDIENTE_APROBACION
-          - APROBADA
-          - RECHAZADA
-          default: PENDIENTE_APROBACION
-  /api/aprobaciones/{id}/decision:
-    parameters:
-    - $ref: '#/components/parameters/Id'
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+  /api/solicitudes/registrar:
     post:
-      summary: Decidir solicitud pendiente; recalcular cuota si aprueba
-      description: 'Rol requerido: APROBADOR.'
-      tags:
-      - Aprobador
-      parameters:
-      - $ref: '#/components/parameters/CsrfToken'
+      summary: 'Registrar: solo ejecutivo'
+      security:
+      - session: []
+        csrf: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DecisionRequest'
+              $ref: '#/components/schemas/Registro'
       responses:
-        '200':
-          description: Operación completada.
+        '201':
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CotizacionResponse'
-        '400':
-          $ref: '#/components/responses/400'
+                $ref: '#/components/schemas/Solicitud'
         '401':
-          $ref: '#/components/responses/401'
+          description: Sesion invalida
         '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
+          description: Rol o CSRF no autorizado
         '409':
-          $ref: '#/components/responses/409'
-        '500':
-          $ref: '#/components/responses/500'
-        '503':
-          $ref: '#/components/responses/503'
-components:
-  securitySchemes:
-    SessionCookie:
-      type: apiKey
-      in: cookie
-      name: JSESSIONID
-      description: Cookie emitida por Spring Security después de POST /login.
-  parameters:
-    CsrfToken:
-      name: X-CSRF-TOKEN
-      in: header
-      required: true
-      description: Valor csrfToken obtenido de GET /api/session. Usar el nombre exacto
-        devuelto en csrfHeader.
-      schema:
-        type: string
-    Page:
-      name: page
-      in: query
-      schema:
-        type: integer
-        minimum: 0
-        maximum: 10000
-        default: 0
-    Size:
-      name: size
-      in: query
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 50
-        default: 12
-    Id:
-      name: id
+          description: Conflicto de version, estado o integridad
+  /api/solicitudes/{id}:
+    parameters:
+    - name: id
       in: path
       required: true
       schema:
         type: integer
-        format: int32
-  responses:
-    '400':
-      description: Formato, parámetros o reglas financieras inválidos.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '401':
-      description: No existe una sesión autenticada.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '403':
-      description: Rol sin permiso o token CSRF inválido.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '404':
-      description: Cotización inexistente o no pertenece al ejecutivo.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '409':
-      description: Conflicto de versión, estado o identidad del cliente. Volver a
-        consultar antes de decidir.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '422':
-      description: El perfil no es elegible para la tasa preferencial.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '500':
-      description: Error interno.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    '503':
-      description: Base de datos o recursos temporalmente ocupados.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
+        minimum: 1
+    get:
+      summary: Detalle autorizado
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Solicitud'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+  /api/solicitudes/{id}/evaluar:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    post:
+      summary: Asignar al gestor autenticado
+      security:
+      - session: []
+        csrf: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Version'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Solicitud'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+  /api/solicitudes/{id}/aprobar:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    post:
+      summary: 'Aprobar: solo gestor asignado'
+      security:
+      - session: []
+        csrf: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Solicitud'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+  /api/solicitudes/{id}/rechazar:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    post:
+      summary: 'Rechazar: solo gestor asignado'
+      security:
+      - session: []
+        csrf: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Decision'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Solicitud'
+        '401':
+          description: Sesion invalida
+        '403':
+          description: Rol o CSRF no autorizado
+        '409':
+          description: Conflicto de version, estado o integridad
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+    csrf:
+      type: apiKey
+      in: header
+      name: X-CSRF-TOKEN
   schemas:
-    Importe:
-      oneOf:
-      - type: number
-        minimum: 0
-        maximum: 999999999.99
-        multipleOf: 0.01
-      - type: string
-        pattern: ^[0-9]{1,9}(\.[0-9]{1,2})?$
-      description: Decimal no negativo, hasta 9 dígitos enteros y 2 decimales. Se
-        recomienda string decimal para preservar precisión.
-    SimulacionRequest:
+    Empleado:
       type: object
-      required:
-      - valorInmueble
-      - cuotaInicial
-      - plazoMeses
-      - ingresosMensuales
-      - deudasMensuales
       properties:
-        valorInmueble:
-          description: Mayor que cero. Máximo operativo 999999999.
-          allOf:
-          - $ref: '#/components/schemas/Importe'
-        cuotaInicial:
-          description: Debe cumplir la política y ser menor que el valor del inmueble.
-          allOf:
-          - $ref: '#/components/schemas/Importe'
-        plazoMeses:
+        empleadoId:
           type: integer
-          format: int32
-          minimum: 1
-          maximum: 360
-        ingresosMensuales:
-          description: Mayor que cero. Máximo operativo 999999999.
-          allOf:
-          - $ref: '#/components/schemas/Importe'
-        deudasMensuales:
-          $ref: '#/components/schemas/Importe'
-        scoreCrediticio:
-          type: integer
-          format: int32
-          minimum: 0
-          maximum: 999
-          nullable: true
-    CrearCotizacionRequest:
-      allOf:
-      - $ref: '#/components/schemas/SimulacionRequest'
-      - type: object
-        required:
-        - dni
-        - nombres
-        - apellidos
-        properties:
-          dni:
-            type: string
-            pattern: ^[0-9]{8}$
-          nombres:
-            type: string
-            minLength: 1
-            maxLength: 100
-          apellidos:
-            type: string
-            minLength: 1
-            maxLength: 100
-    SolicitudTasaRequest:
-      type: object
-      required:
-      - teaPreferencial
-      - version
-      properties:
-        teaPreferencial:
-          oneOf:
-          - type: number
-            minimum: 0
-            maximum: 100
-            multipleOf: 0.01
-          - type: string
-            pattern: ^[0-9]{1,3}(\.[0-9]{1,2})?$
-          description: Porcentaje entre 0 y 100; debe ser menor que la TEA original.
-        version:
-          type: integer
-          format: int64
-          minimum: 0
-    DecisionRequest:
-      type: object
-      required:
-      - aprobar
-      - comentario
-      - version
-      properties:
-        aprobar:
-          type: boolean
-        comentario:
+        codigoMatricula:
           type: string
-          minLength: 1
-          maxLength: 500
-          description: No admite solo espacios.
-        version:
-          type: integer
-          format: int64
-          minimum: 0
-    SimulacionResponse:
-      type: object
-      required:
-      - montoPrestamo
-      - ltvPorcentaje
-      - tea
-      - tem
-      - cuotaMensual
-      - dstiPorcentaje
-      - totalIntereses
-      - elegiblePreferencial
-      - motivos
-      properties:
-        montoPrestamo:
-          type: number
-        ltvPorcentaje:
-          type: number
-        tea:
-          type: number
-        tem:
-          type: number
-        cuotaMensual:
-          type: number
-        dstiPorcentaje:
-          type: number
-        totalIntereses:
-          type: number
-        elegiblePreferencial:
-          type: boolean
-        motivos:
-          type: array
-          items:
-            type: string
-    CotizacionResponse:
-      type: object
-      required:
-      - id
-      - version
-      - dni
-      - nombres
-      - apellidos
-      - ejecutivo
-      - valorInmueble
-      - cuotaInicial
-      - montoPrestamo
-      - ltvPorcentaje
-      - teaCalculada
-      - cuotaMensualEstimada
-      - ingresosMensuales
-      - deudasMensuales
-      - dstiPorcentaje
-      - plazoMeses
-      - teaPreferencialSolicitada
-      - scoreCrediticio
-      - estado
-      - fechaCreacion
-      - comentarioDecision
-      - aprobador
-      - elegiblePreferencial
-      - motivos
-      properties:
-        id:
-          type: integer
-          format: int32
-        version:
-          type: integer
-          format: int64
-          minimum: 0
-        dni:
-          type: string
-          pattern: ^[0-9]{8}$
         nombres:
           type: string
         apellidos:
           type: string
-        ejecutivo:
+        rolPrincipal:
           type: string
-        valorInmueble:
+          enum:
+          - EJECUTIVO_COMERCIAL
+          - GESTOR_RIESGOS
+      required: []
+    Producto:
+      type: object
+      properties:
+        productoId:
+          type: integer
+        nombreProducto:
+          type: string
+        tasaInteresReferencial:
           type: number
-        cuotaInicial:
+      required: []
+    Cliente:
+      type: object
+      properties:
+        clienteId:
+          type: integer
+        tipoDocumento:
+          type: string
+        numeroDocumento:
+          type: string
+        nombres:
+          type: string
+        apellidos:
+          type: string
+        ingresoMensualNeto:
           type: number
-        montoPrestamo:
+      required: []
+    Garantia:
+      type: object
+      properties:
+        tipoInmueble:
+          type: string
+          enum:
+          - CASA
+          - DEPARTAMENTO
+          - TERRENO
+        direccion:
+          type: string
+          minLength: 1
+          maxLength: 150
+        partidaRegistral:
+          type: string
+          maxLength: 30
+          nullable: true
+        valorComercial:
           type: number
-        ltvPorcentaje:
+          minimum: 0.01
+        valorTasacion:
           type: number
-        teaCalculada:
+          minimum: 0.01
+          nullable: true
+      required:
+      - tipoInmueble
+      - direccion
+      - valorComercial
+    Registro:
+      type: object
+      properties:
+        productoId:
+          type: integer
+          minimum: 1
+          maximum: 32767
+        montoSolicitado:
           type: number
-        cuotaMensualEstimada:
-          type: number
-        ingresosMensuales:
-          type: number
-        deudasMensuales:
-          type: number
-        dstiPorcentaje:
-          type: number
+          minimum: 0.01
+          maximum: 9999999999.99
         plazoMeses:
           type: integer
-          format: int32
-        teaPreferencialSolicitada:
-          type: number
-          nullable: true
-        scoreCrediticio:
+          minimum: 1
+          maximum: 360
+        participantes:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            type: object
+            properties:
+              clienteId:
+                type: integer
+                minimum: 1
+              tipoParticipacion:
+                type: string
+                enum:
+                - TITULAR
+                - CODEUDOR
+            required:
+            - clienteId
+            - tipoParticipacion
+        inmuebles:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Garantia'
+      required:
+      - productoId
+      - montoSolicitado
+      - plazoMeses
+      - participantes
+      - inmuebles
+    Version:
+      type: object
+      properties:
+        version:
           type: integer
-          format: int32
+          format: int64
+          minimum: 0
+      required:
+      - version
+    Decision:
+      type: object
+      properties:
+        version:
+          type: integer
+          format: int64
+          minimum: 0
+        comentario:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+      - version
+      - comentario
+    Solicitud:
+      type: object
+      properties:
+        solicitudId:
+          type: integer
+        numeroExpediente:
+          type: string
+        producto:
+          $ref: '#/components/schemas/Producto'
+        ejecutivo:
+          $ref: '#/components/schemas/Empleado'
+        gestorRiesgo:
+          allOf:
+          - $ref: '#/components/schemas/Empleado'
           nullable: true
-        estado:
-          $ref: '#/components/schemas/Estado'
+        montoSolicitado:
+          type: number
+        moneda:
+          type: string
+          enum:
+          - PEN
+        plazoMeses:
+          type: integer
+        estadoActual:
+          type: string
+          enum:
+          - REGISTRADO
+          - EN_EVALUACION
+          - APROBADO
+          - RECHAZADO
         fechaCreacion:
           type: string
-          description: Fecha UTC sin offset (LocalDateTime). Interpretar en UTC antes
-            de mostrar en America/Lima.
-          example: '2026-09-27T18:30:00'
-        comentarioDecision:
-          type: string
-          nullable: true
-        aprobador:
-          type: string
-          nullable: true
-        elegiblePreferencial:
-          type: boolean
-        motivos:
+        version:
+          type: integer
+        cuotaMensual:
+          type: number
+        ltv:
+          type: number
+        dsti:
+          type: number
+        participantes:
           type: array
           items:
-            type: string
-    PaginaCotizaciones:
+            type: object
+            properties:
+              tipoParticipacion:
+                type: string
+              cliente:
+                $ref: '#/components/schemas/Cliente'
+            required: []
+        inmuebles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Garantia'
+        historial:
+          type: array
+          items:
+            type: object
+            properties:
+              historialId:
+                type: integer
+              estadoNuevo:
+                type: string
+              fechaCambio:
+                type: string
+              comentario:
+                type: string
+              empleadoId:
+                type: integer
+            required: []
+      required: []
+    Pagina:
       type: object
-      required:
-      - content
-      - totalElements
-      - totalPages
-      - number
       properties:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/CotizacionResponse'
+            $ref: '#/components/schemas/Solicitud'
         totalElements:
           type: integer
-          format: int64
         totalPages:
           type: integer
-          format: int32
         number:
           type: integer
-          format: int32
-    Estado:
-      type: string
-      enum:
-      - BORRADOR
-      - PENDIENTE_APROBACION
-      - APROBADA
-      - RECHAZADA
-    SessionResponse:
-      type: object
-      required:
-      - username
-      - role
-      - csrfToken
-      - csrfHeader
-      properties:
-        username:
-          type: string
-        role:
-          type: string
-          enum:
-          - EJECUTIVO
-          - APROBADOR
-        csrfToken:
-          type: string
-        csrfHeader:
-          type: string
-          example: X-CSRF-TOKEN
-    PoliticaResponse:
-      type: object
-      required:
-      - teaBase
-      - cuotaInicialMinimaPorcentaje
-      - scoreMinimo
-      - dstiMaximo
-      - plazoMaximoMeses
-      properties:
-        teaBase:
-          type: number
-        cuotaInicialMinimaPorcentaje:
-          type: number
-        scoreMinimo:
-          type: integer
-          format: int32
-        dstiMaximo:
-          type: number
-        plazoMaximoMeses:
-          type: integer
-          format: int32
-    ErrorResponse:
-      type: object
-      required:
-      - status
-      - message
-      - fieldErrors
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-        status:
-          type: integer
-          format: int32
-        message:
-          type: string
-        fieldErrors:
-          type: object
-          additionalProperties:
-            type: string
+      required: []

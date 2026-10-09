@@ -1,36 +1,25 @@
-# @DatabaseAgent: migracion y operacion
+# Persistencia SQL Server
 
-Ejecutar `./database/Initialize-Cotizador.ps1` antes de iniciar la aplicacion. El orden es `01`, `02`, `05`, datos opcionales `03`, y smoke `04`. Se conserva el numero original de la prueba para compatibilidad. Ejecutar una sola migracion a la vez, durante una ventana de despliegue: ALTER TABLE requiere bloqueos de esquema. Hibernate debe usar `ddl-auto=validate`.
+Esquema: Cotizador. Tablas: empleado, cliente, producto_hipotecario, solicitud_credito, solicitud_cliente, inmueble_garantia y solicitud_historial_estado.
 
-`05-app-evolution.sql` agrega a `Cotizador.Cotizaciones`:
+## Migración
 
-| Columna | Tipo | Uso |
-| --- | --- | --- |
-| version | BIGINT NOT NULL DEFAULT 0 | Version de bloqueo optimista; JPA incrementa al actualizar |
-| ingresos_mensuales | DECIMAL(18,2) NULL | Ingreso declarado al cotizar |
-| deudas_mensuales | DECIMAL(18,2) NULL | Cuotas mensuales existentes |
-| score_crediticio | INT NULL | Score declarado al cotizar |
-| dsti_porcentaje | DECIMAL(9,2) NULL | (Cuota + deudas) / ingreso * 100 |
-| id_aprobador | INT NULL | FK a Usuarios |
-| comentario_decision | NVARCHAR(500) NULL | Motivo de decision |
-| fecha_decision | DATETIME2 NULL | Instante de decision, enviado en UTC por la app |
+database/Initialize-Cotizador.ps1 ejecuta 01-create-database.sql y V2_schema.sql. IncludeDemoData añade 03-seed-data.sql. Las tablas y filas existentes se conservan. La ejecución usa sqlcmd -b, XACT_ABORT y una transacción para V2.
 
-El backfill ocurre solamente al crear cada columna: ingreso y score se copian del cliente actual, porque no existe historia anterior; deudas se inicializa en cero exclusivamente para registros antiguos. **El cero historico representa informacion desconocida, no ausencia de deuda verificada.** Su DSTI es solo una estimacion con ese supuesto; revisar los datos antes de decidir sobre solicitudes antiguas. Ingresos no positivos producen DSTI nulo. No se inventan aprobadores, comentarios ni fechas para decisiones historicas. Repetir el script no altera snapshots ya existentes. Las cotizaciones nuevas deben enviar sus propios datos de riesgo; no existen defaults que oculten datos faltantes.
+V2 corrige las FK heredadas que apuntaban accidentalmente a dbo: comprueba primero que las referencias existan en Cotizador; ante una referencia huérfana aborta y solicita conciliación, sin borrar filas.
 
-Los indices `(id_ejecutivo, fecha_creacion DESC, id_cotizacion DESC)` y `(estado, fecha_creacion DESC, id_cotizacion DESC)` permiten paginar con orden estable. Se conservan los indices originales para no eliminar dependencias existentes. Revisar planes y uso antes de retirar indices redundantes en produccion.
+Las nuevas columnas tasa_aplicada e ingreso_evaluado conservan los valores financieros del registro. Para solicitudes antiguas sin snapshot, la migración utiliza los valores actuales del catálogo; no reconstruye valores históricos que no se guardaron.
 
-El smoke crea datos dentro de una transaccion y los revierte. Verifica snapshots, default de version, FK de aprobador, auditoria y que una actualizacion con version obsoleta afecte cero filas. No reemplaza la prueba de concurrencia HTTP. Los contadores IDENTITY pueden avanzar aunque se revierta la transaccion.
+Índices de ejecutivo/fecha y estado/fecha apoyan las carteras. @Version mapea BIGINT. Las columnas CHAR(3) de documento y moneda se declaran como CHAR en JPA para validar contra SQL Server.
 
-## Cuenta SQL de ejecucion
+## Cuenta de aplicación
 
-La cuenta de migraciones necesita DDL; debe ser distinta de la cuenta de la app. El inicializador local reutiliza SA dentro del contenedor sin imprimir su clave. No usar SA para servir peticiones web. Un administrador debe provisionar un login y usuario propios y otorgar solamente:
+Provision-LocalApp.ps1 crea/verifica cotizador_app con SELECT, INSERT y UPDATE sobre el esquema. No otorga DELETE ni DDL. Las mutaciones del agregado agregan historial sin borrar hijos. Migraciones con cuenta administrativa separada.
 
-```sql
-USE Cotizador;
--- Sustituir CotizadorApp por el usuario previamente provisionado.
-GRANT SELECT ON OBJECT::Cotizador.Usuarios TO CotizadorApp;
-GRANT SELECT, INSERT, UPDATE ON OBJECT::Cotizador.Clientes TO CotizadorApp;
-GRANT SELECT, INSERT, UPDATE ON OBJECT::Cotizador.Cotizaciones TO CotizadorApp;
-```
+Las claves locales están cifradas con DPAPI en artifacts/private, fuera de Git. El aprovisionador no rota ni sustituye silenciosamente cuentas existentes.
 
-La provision de cuentas web debe ejecutarse separadamente con permisos de escritura en Usuarios. No otorgar `db_owner`, `ALTER`, `CONTROL` ni DELETE a la cuenta de ejecucion. Mantener credenciales en variables de entorno o gestor de secretos. En produccion usar certificado SQL valido con `encrypt=true;trustServerCertificate=false`, backups y recursos medidos. El numero de usuarios concurrentes por si solo no demuestra capacidad: medir latencia, saturacion del pool, CPU y bloqueos con la carga real.
+## Datos de demostración
+
+IncludeDemoData inserta tres productos y dos clientes sintéticos por nombre/documento si no existen. No modifica ingresos ni tasas existentes. Start-Local.ps1 activa esos datos en el entorno local.
+
+Las cuentas ejecutivo/aprobador se crean desde Spring bajo el perfil local, con contraseñas aleatorias guardadas por el script de arranque y hashes BCrypt. No hay cuentas con claves predeterminadas.

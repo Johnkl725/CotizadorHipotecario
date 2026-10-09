@@ -1,0 +1,15 @@
+.git
+.gradle
+build
+artifacts
+.idea
+.agents
+.codex
+.aws
+.env
+.env.*
+frontend-angular/node_modules
+frontend-angular/dist
+frontend-angular/.angular
+frontend-angular/coverage
+**/*.log

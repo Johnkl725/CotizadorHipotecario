@@ -1,44 +1,62 @@
-# Contratos REST — @ArchitectAgent / @BackendAgent
+# API actual de solicitudes V2
 
-Contrato formal: [OpenAPI 3.0.3](openapi.yaml).
+Contrato formal: [OpenAPI](openapi.yaml).
 
-Base `/api`. Autenticación de sesión mediante formulario `POST /login`; CSRF también obligatorio en login/logout. Para JSON, obtener `/api/session` y enviar su `csrfToken` en el header indicado por `csrfHeader`. No se usa Basic Auth ni se desactiva CSRF. `/login` entrega el token del formulario en un input hidden.
+La API usa sesión de servidor, no Basic Auth. Todas las mutaciones requieren CSRF. Las respuestas nunca incluyen hashes de contraseña.
 
-| Método y ruta | Rol | Resultado |
-|---|---|---|
-| GET /session | Ambos | username, role, csrfToken, csrfHeader |
-| GET /politica | Ambos | Umbrales y TEA base configurados |
-| POST /simulaciones | EJECUTIVO | Resultado financiero sin persistir |
-| POST /cotizaciones | EJECUTIVO | 201 y cotización guardada |
-| GET /cotizaciones?page=0&size=12 | EJECUTIVO | Cartera propia paginada |
-| POST /cotizaciones/{id}/solicitud | EJECUTIVO | BORRADOR → PENDIENTE_APROBACION |
-| GET /aprobaciones?estado=PENDIENTE_APROBACION&page=0&size=12 | APROBADOR | Bandeja paginada; admite también APROBADA/RECHAZADA |
-| POST /aprobaciones/{id}/decision | APROBADOR | Decisión final y cuota recalculada si aprueba |
+## Acceso
 
-Simulación:
+1. GET /api/csrf devuelve {token, headerName} y establece la sesión necesaria.
+2. POST /api/login con Content-Type application/x-www-form-urlencoded, username/password y el header CSRF. Devuelve 200 o 401.
+3. GET /api/session devuelve empleadoId, codigoMatricula, nombres, apellidos y rolPrincipal.
+4. Después del login y antes de otra escritura, obtener un nuevo CSRF; el token anterior se invalida durante la autenticación.
+5. POST /api/logout con CSRF devuelve 204 e invalida la sesión.
 
-```json
-{"valorInmueble":"300000.00","cuotaInicial":"60000.00","plazoMeses":240,"ingresosMensuales":"12000.00","deudasMensuales":"500.00","scoreCrediticio":850}
-```
+| Operación | Permiso |
+|---|---|
+| GET /api/productos | Ambos roles |
+| GET /api/clientes?q=nombre-o-documento | Ejecutivo; máximo 20 coincidencias |
+| POST /api/solicitudes/registrar | Ejecutivo |
+| GET /api/solicitudes?page=0&size=12&estado=&q= | Ejecutivo: cartera propia; gestor: cartera de la entidad |
+| GET /api/solicitudes/{id} | Ejecutivo propietario o gestor |
+| POST /api/solicitudes/{id}/evaluar | Gestor |
+| POST /api/solicitudes/{id}/aprobar | Gestor asignado |
+| POST /api/solicitudes/{id}/rechazar | Gestor asignado |
 
-Importes pueden enviarse como números JSON o strings decimales. Se recomiendan strings para evitar pérdida de precisión en clientes JavaScript. Score puede ser null; resto es obligatorio. Se aceptan hasta 9 dígitos enteros y 2 decimales, valores positivos para inmueble/ingresos, cero permitido para inicial/deudas. Plazo 1–360 sujeto al máximo configurado. Inicial debe cumplir política y ser menor al inmueble.
+La lista devuelve {content,totalElements,totalPages,number}. Size: 1–50. Estados: REGISTRADO, EN_EVALUACION, APROBADO, RECHAZADO. Búsqueda por expediente, nombre o documento, máximo 100 caracteres.
 
-Respuesta: `montoPrestamo`, `ltvPorcentaje`, `tea`, `tem`, `cuotaMensual`, `dstiPorcentaje`, `totalIntereses`, `elegiblePreferencial`, `motivos`. Tasas y ratios porcentuales. Para el ejemplo con TEA 9%: cuota **2105.43**.
-
-Crear cotización añade `dni` (8 dígitos), `nombres`, `apellidos` (máximo 100 caracteres). El DNI existente requiere el mismo nombre, sin distinguir mayúsculas. Cada cotización devuelve su `id` y `version`.
-
-Solicitud de tasa:
+## Registro
 
 ```json
-{"teaPreferencial":"8.00","version":0}
+{
+  "productoId": 1,
+  "montoSolicitado": 100000,
+  "plazoMeses": 240,
+  "participantes": [{"clienteId": 1, "tipoParticipacion": "TITULAR"}],
+  "inmuebles": [{
+    "tipoInmueble": "DEPARTAMENTO",
+    "direccion": "Dirección del inmueble",
+    "partidaRegistral": "",
+    "valorComercial": 150000,
+    "valorTasacion": null
+  }]
+}
 ```
 
-Decisión:
+Devuelve 201. Los IDs son referencias a catálogos existentes. No se acepta tasa, empleado, estado, fecha, historial ni expediente suministrado por el cliente. Los ingresos y tasa se leen y conservan en servidor. Campos desconocidos son rechazados.
 
-```json
-{"aprobar":true,"comentario":"Perfil validado; capacidad de pago suficiente.","version":1}
-```
+Participación: TITULAR o CODEUDOR, un titular obligatorio. Tipo de inmueble: DEPARTAMENTO, CASA o TERRENO. Importes positivos, máximo 10 enteros y 2 decimales; hasta cinco participantes/inmuebles.
 
-Comentario obligatorio, máximo 500 caracteres. Siempre enviar la versión recién leída. Páginas: `{content,totalElements,totalPages,number}`, orden fecha/id descendente. Cotización incluye datos de cliente, financiero, estado, versión, ejecutivo y decisión; nunca hashes de contraseña.
+## Transiciones
 
-Errores: `{timestamp,status,message,fieldErrors}` (los errores del filtro de seguridad omiten timestamp). 400 datos inválidos; 401 sin sesión; 403 rol/CSRF; 404 no existe o pertenece a otro ejecutivo; 409 estado/versión/identidad en conflicto; 422 perfil no elegible; 503 recurso temporalmente ocupado. No reintentar POST de creación automáticamente después de una respuesta incierta.
+Evaluar: {"version":0}. Aprobar/rechazar: {"version":1,"comentario":"Fundamento de la decisión"}.
+
+Version obligatoria. Comentario de 1–255 caracteres útiles. Se devuelve el detalle actualizado con nueva versión e historial. El servidor toma al empleado de la sesión, aunque se envíen parámetros de actor adicionales.
+
+El detalle contiene cuotaMensual, ltv y dsti calculados en Java, además de participantes, garantías, ejecutivo, gestor e historial.
+
+## Errores
+
+400: formato o validación; 401: sesión inválida; 403: rol/CSRF/gestor ajeno; 404: no existe o no pertenece al ejecutivo; 409: versión, estado, límites de aprobación o integridad en conflicto; 503: recurso temporalmente no disponible.
+
+No reintentar automáticamente un registro tras una respuesta incierta: consultar primero la cartera.

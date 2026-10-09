@@ -13,7 +13,7 @@ try {
     $env:JAVA_HOME = $localJavaHome
     Push-Location $projectDirectory
     try {
-        & ./database/Initialize-Cotizador.ps1 -Container $Container
+        & ./database/Initialize-Cotizador.ps1 -Container $Container -IncludeDemoData
         if (-not $SkipBuild) {
             & ./gradlew.bat bootJar
             if ($LASTEXITCODE -ne 0) { throw 'La compilacion fallo.' }

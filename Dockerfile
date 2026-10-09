@@ -1,42 +1,27 @@
-# ==========================================
-# Etapa 1: Construcción (Builder)
-# ==========================================
+# Build the SPA with a compatible Node runtime.
+FROM node:22-alpine AS frontend
+WORKDIR /web
+COPY frontend-angular/package.json frontend-angular/package-lock.json ./
+RUN npm ci
+COPY frontend-angular/ ./
+RUN npm run build
+
 FROM eclipse-temurin:17-jdk-alpine AS builder
 WORKDIR /app
-
-# Copiar archivos de configuración de Gradle
-COPY gradlew .
+COPY gradlew settings.gradle build.gradle ./
 COPY gradle gradle
-COPY build.gradle settings.gradle ./
-
-# Descargar dependencias (Aprovechamos la caché de Docker)
-RUN ./gradlew dependencies --no-daemon || true
-
-# Copiar el código fuente
+RUN chmod +x gradlew
 COPY src src
+COPY --from=frontend /web/dist/frontend-angular/browser frontend-angular/dist/frontend-angular/browser
+RUN ./gradlew bootJar --no-daemon -x buildFrontend
 
-# Compilar el proyecto empaquetándolo en un JAR (omitiendo tests para mayor velocidad)
-RUN ./gradlew bootJar --no-daemon -x test
-
-# ==========================================
-# Etapa 2: Producción (Runner)
-# ==========================================
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-
-# Por seguridad, creamos un usuario sin privilegios de root para correr la aplicación
 RUN addgroup -S springuser && adduser -S springuser -G springuser
+COPY --from=builder --chown=springuser:springuser /app/build/libs/NewCotizador-0.0.1-SNAPSHOT.jar app.jar
 USER springuser:springuser
-
-# Variables de entorno por defecto (se sobrescribirán en Railway/Render)
 ENV PORT=8080
 ENV SPRING_PROFILES_ACTIVE=prod
-
-# Copiar solo el JAR final compilado desde la etapa anterior
-COPY --from=builder /app/build/libs/*.jar app.jar
-
-# Exponer el puerto
-EXPOSE ${PORT}
-
-# Iniciar la aplicación Java
-ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-Dserver.port=${PORT}", "-jar", "app.jar"]
+EXPOSE 8080
+# Spring reads PORT from application.properties; JSON entrypoints do not expand shell variables.
+ENTRYPOINT ["java", "-Xms128m", "-Xmx512m", "-jar", "app.jar"]

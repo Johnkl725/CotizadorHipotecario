@@ -1,56 +1,73 @@
-# UMBRAL · New Cotizador
+# UMBRAL · Cotizador hipotecario
 
-Aplicación hipotecaria en soles: simulación francesa con tasa fija, cartera por ejecutivo y aprobación de tasas preferenciales. Spring Boot 4.1.1, Java 17, SQL Server 2022 y Thymeleaf. Diseño propio en bosque, marfil y cobre, sin servicios de fuentes ni JavaScript externos.
+Aplicación de créditos en soles con **Angular 18, Spring Boot, Java 17 y SQL Server**. Incluye autenticación con sesión, dos perfiles, cartera persistente y decisiones auditadas.
 
-## Arranque local (Windows / Podman)
+## Probar las dos vistas
 
-Requisitos: Java 17 en PATH y el contenedor SQL Server `gastos_etl_mssql` activo, publicado en `localhost:14330`. No ocupa el puerto 8080 que utiliza Airflow.
+La aplicación integrada se abre en **http://127.0.0.1:8081**.
+
+| Cuenta local | Perfil | Vista y permisos |
+|---|---|---|
+| `ejecutivo` | Ejecutivo comercial | Simulador, registro y seguimiento de sus propias solicitudes. |
+| `aprobador` | Gestor de riesgos | Bandeja de la entidad, asignación de expedientes, aprobación y rechazo con fundamento. |
+
+Las contraseñas son aleatorias y se guardan cifradas con DPAPI, fuera de Git. Para verlas en tu terminal privada:
 
 ```powershell
-./scripts/Start-Local.ps1
 ./scripts/Show-LocalAccess.ps1
 ```
 
-Abre **http://localhost:8081**. El primer comando aplica las migraciones, compila, provisiona una cuenta SQL restringida, genera claves aleatorias para `ejecutivo` y `aprobador`, e inicia Java oculto. El segundo muestra tus claves locales. Usa dos perfiles de navegador para trabajar simultáneamente con ambos roles.
+Usa dos perfiles de navegador para mantener ambas sesiones abiertas a la vez, o **Cerrar sesión** para cambiar de cuenta. Los botones de perfil de la pantalla de acceso solo completan la matrícula; los permisos proceden del servidor.
 
-Las credenciales se guardan cifradas con DPAPI bajo `artifacts/private`, excluido de Git. Solo el mismo usuario Windows puede descifrarlas. No hay contraseñas predeterminadas. Los usuarios existentes no se sobrescriben. Logs y PID están en ese directorio. No borres las credenciales mientras conserves las cuentas SQL/aplicación.
+## Arranque local
 
-Para usar otra instancia, configura `DB_URL` y proporciona sus credenciales como variables de entorno; inicia el JAR directamente. `Start-Local.ps1` está destinado al entorno Podman descrito.
+Requisitos: Java 17, Node/npm, dependencias Angular instaladas y SQL Server en el contenedor Podman `gastos_etl_mssql`, puerto 14330.
+
+```powershell
+cd frontend-angular
+npm.cmd ci
+cd ..
+./scripts/Start-Local.ps1
+```
+
+El script aplica la migración V2 conservando los datos, inserta catálogos/clientes de demostración sin duplicarlos, compila Angular dentro del JAR, provisiona una cuenta SQL restringida y crea las dos cuentas locales. No restablece las claves de cuentas existentes. Java se inicia oculto; logs y PID quedan en `artifacts/private`.
+
+Para detener solo la aplicación: `./scripts/Stop-Local.ps1`. SQL Server sigue activo.
+
+Durante el desarrollo puedes usar `npm.cmd start -- --host 127.0.0.1` en `frontend-angular`; el frontend en el puerto 4200 reenvía `/api` al 8081.
+
+## Flujo
+
+1. Ejecutivo: elige un producto del catálogo, configura monto/inicial/plazo y selecciona clientes existentes. Los ingresos se obtienen del servidor.
+2. Registra una o más garantías y guarda. El servidor genera el expediente y fija tasa, ingresos, fecha, estado y autor.
+3. Gestor: consulta la bandeja, abre un expediente y pulsa **Iniciar evaluación** para asignárselo.
+4. Revisa participantes, garantías, cuota, LTV, DSTI e historial. Aprueba o rechaza con fundamento obligatorio.
+5. Ejecutivo: ve la decisión al actualizar o volver a abrir su cartera. Los datos permanecen después de recargar.
+
+Para una prueba aprobable con los datos locales: vivienda S/ 150 000, inicial S/ 50 000, 20 años, producto tradicional, titular Juan Perez y garantía de S/ 150 000. Son datos y tasas ilustrativos.
+
+## Validación
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'
 ./gradlew.bat test bootJar
-# DB_URL, DB_USERNAME, DB_PASSWORD deben existir en el entorno de este proceso.
-java -Xms128m -Xmx512m -jar build/libs/NewCotizador-0.0.1-SNAPSHOT.jar
+cd frontend-angular
+$env:CHROME_BIN = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+npm.cmd test -- --watch=false --browsers=ChromeHeadless
+cd ..
+./scripts/Test-RoleBrowser.ps1
 ```
 
-## Flujo
+La prueba de navegador usa SQL Server real y dos sesiones independientes; crea dos solicitudes identificadas como **Prueba UI roles**, una aprobada y otra rechazada. No elimina registros. Evidencias en `artifacts/roles-review`.
 
-1. Ejecutivo: introduce valor, inicial, plazo, ingresos, deudas existentes y score opcional. Calcula sin escribir en SQL.
-2. Guarda la cotización con DNI y nombre. Se conservan sus variables financieras; nuevos ingresos no alteran cotizaciones anteriores.
-3. Si el perfil cumple la política, solicita una TEA menor a la original.
-4. Aprobador: revisa perfil, LTV, DSTI y score; aprueba o rechaza con fundamento obligatorio.
-5. Una aprobación recalcula la cuota con la tasa concedida. Se conserva la TEA original y se registra quién decidió y cuándo.
+Las pruebas Java incluyen login, CSRF, propiedad de cartera, permisos, validación, snapshots financieros, historial y asignación concurrente. Utilizan H2 para aislamiento; la revisión real complementa esa cobertura con SQL Server.
 
-Cambios simultáneos devuelven HTTP 409. Otro ejecutivo no puede consultar ni enviar solicitudes sobre cotizaciones ajenas. Rechazar conserva la cuota original. Esta versión admite una decisión final por solicitud; para otra evaluación se crea otra cotización.
+## Despliegue
 
-## Política configurable de demostración
+`bootJar` incorpora la SPA y la API en el mismo origen. Activa el perfil `prod`, configura `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, sirve detrás de HTTPS y usa un certificado SQL válido. Aplica las migraciones con una cuenta administrativa separada; la aplicación no recibe permisos DDL ni DELETE.
 
-El diseño original no establece una política comercial. Se usa **TEA 9%, inicial mínima 10%, score mínimo 700, DSTI máximo 40%, plazo máximo 360 meses**. Son valores ilustrativos, no tasas de mercado ni una aprobación crediticia. Para preferencial se exige score **y** DSTI dentro de límites. Score desconocido permite simular y guardar, pero no solicitar preferencial.
+Las dos cuentas automáticas existen únicamente bajo el perfil `local`. Para producción, provisiona empleados con hashes BCrypt y roles válidos. Las sesiones viven en la instancia Java; varias réplicas requieren afinidad o un almacén de sesiones compartido.
 
-Configura `TEA_BASE`, `INICIAL_MINIMA`, `SCORE_MINIMO`, `DSTI_MAXIMO`, `PLAZO_MAXIMO`. TEA/TEM/LTV/DSTI de la API son porcentajes, no fracciones. Los límites se comparan sin redondear el DSTI. Cuotas a dos decimales, HALF_UP; cálculo interno a 34 dígitos. Incluye deuda mensual existente. No incluye seguros, comisiones, periodos de gracia ni tasas variables/mixtas. Intereses totales son una estimación teórica antes del ajuste de la última cuota.
+La política actual usa LTV máximo 90%, DSTI máximo 40% y plazo máximo 360 meses; no incluye seguros, comisiones, otras deudas, score externo ni tasas preferenciales. Requiere validación comercial antes de ofrecer crédito real.
 
-## Verificación
-
-```powershell
-./gradlew.bat test
-./scripts/Test-LocalLoad.ps1 -Users 60 -Iterations 20
-# Incluye escrituras y decisiones; deja 60 cotizaciones sintéticas identificadas como Carga.
-./scripts/Test-LocalLoad.ps1 -Users 60 -Iterations 20 -Persist
-# Opcional: Python con playwright y Chromium; crea una cotización sintética.
-./scripts/Test-LocalBrowser.ps1
-```
-
-Las pruebas Java usan H2 en modo SQL Server para aislamiento y rapidez. Las pruebas HTTP y de navegador usan SQL Server real. Los reportes de carga se guardan en `artifacts/load-*.json` y las capturas en `artifacts/*.png`. No confundir concurrencia del cálculo puro con capacidad extremo a extremo: consulta los resultados y límites en [arquitectura](docs/architecture.md).
-
-Documentación: [base de datos](docs/database.md), [API](docs/api.md), [arquitectura y operación](docs/architecture.md).
+Documentación: [arquitectura](docs/architecture.md), [API](docs/api.md), [base de datos](docs/database.md), [frontend](frontend-angular/README.md).
