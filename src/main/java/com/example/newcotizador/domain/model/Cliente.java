@@ -1,14 +1,22 @@
 package com.example.newcotizador.domain.model;
-import java.math.BigDecimal;
-import lombok.Getter;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
- @Getter @Setter @NoArgsConstructor
+
+import java.math.BigDecimal;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Cliente {
-          private Integer id;
-     private String dni;
-     private String nombres;
-     private String apellidos;
-     private Integer scoreCrediticio;
-     private BigDecimal ingresosMensuales;
+    private Integer clienteId;
+    private String tipoDocumento;
+    private String numeroDocumento;
+    private String nombres;
+    private String apellidos;
+    private String email;
+    private BigDecimal ingresoMensualNeto;
 }

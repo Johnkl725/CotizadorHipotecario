@@ -3,9 +3,8 @@ param(
     [switch]$IncludeDemoData
 )
 $ErrorActionPreference = 'Stop'
-$scripts = @('01-create-database.sql', '02-schema.sql', '05-app-evolution.sql')
-if ($IncludeDemoData) { $scripts += '03-demo-clientes.sql' }
-$scripts += '04-smoke-test.sql'
+$scripts = @('01-create-database.sql', 'V2_schema.sql')
+if ($IncludeDemoData) { $scripts += '03-seed-data.sql' }
 foreach ($script in $scripts) {
     $source = Join-Path $PSScriptRoot $script
     $destination = '/tmp/newcotizador-' + [guid]::NewGuid().ToString('N') + '.sql'

@@ -3,128 +3,237 @@ package com.example.newcotizador.infrastructure.adapter.out.persistence;
 import com.example.newcotizador.domain.model.*;
 import com.example.newcotizador.infrastructure.adapter.out.persistence.entity.*;
 
+import java.util.stream.Collectors;
+
 public class Mapper {
-    public static Usuario toDomain(UsuarioJpaEntity entity) {
+    public static Cliente toDomain(ClienteJpaEntity e) {
+        return Cliente.builder().clienteId(e.getClienteId()).tipoDocumento(e.getTipoDocumento())
+            .numeroDocumento(e.getNumeroDocumento()).nombres(e.getNombres()).apellidos(e.getApellidos())
+            .email(e.getEmail()).ingresoMensualNeto(e.getIngresoMensualNeto()).build();
+    }
+
+
+    public static Empleado toDomain(EmpleadoJpaEntity entity) {
         if (entity == null) return null;
-        Usuario domain = new Usuario();
-        domain.setId(entity.getId());
-        domain.setUsername(entity.getUsername());
-        domain.setPasswordHash(entity.getPasswordHash());
-        domain.setRol(entity.getRol());
-        return domain;
+        return Empleado.builder()
+                .empleadoId(entity.getEmpleadoId())
+                .nombres(entity.getNombres())
+                .apellidos(entity.getApellidos())
+                .codigoMatricula(entity.getCodigoMatricula())
+                .rolPrincipal(entity.getRolPrincipal())
+                .passwordHash(entity.getPasswordHash())
+                .build();
     }
 
-    public static UsuarioJpaEntity toEntity(Usuario domain) {
+    public static EmpleadoJpaEntity toEntity(Empleado domain) {
         if (domain == null) return null;
-        UsuarioJpaEntity entity = new UsuarioJpaEntity();
-        entity.setId(domain.getId());
-        entity.setUsername(domain.getUsername());
-        entity.setPasswordHash(domain.getPasswordHash());
-        entity.setRol(domain.getRol());
-        return entity;
-    }
-
-    public static Cliente toDomain(ClienteJpaEntity entity) {
-        if (entity == null) return null;
-        Cliente domain = new Cliente();
-        domain.setId(entity.getId());
-        domain.setDni(entity.getDni());
-        domain.setNombres(entity.getNombres());
-        domain.setApellidos(entity.getApellidos());
-        domain.setScoreCrediticio(entity.getScoreCrediticio());
-        domain.setIngresosMensuales(entity.getIngresosMensuales());
-        return domain;
-    }
-
-    public static ClienteJpaEntity toEntity(Cliente domain) {
-        if (domain == null) return null;
-        ClienteJpaEntity entity = new ClienteJpaEntity();
-        entity.setId(domain.getId());
-        entity.setDni(domain.getDni());
+        EmpleadoJpaEntity entity = new EmpleadoJpaEntity();
+        entity.setEmpleadoId(domain.getEmpleadoId());
         entity.setNombres(domain.getNombres());
         entity.setApellidos(domain.getApellidos());
-        entity.setScoreCrediticio(domain.getScoreCrediticio());
-        entity.setIngresosMensuales(domain.getIngresosMensuales());
+        entity.setCodigoMatricula(domain.getCodigoMatricula());
+        entity.setRolPrincipal(domain.getRolPrincipal());
+        entity.setPasswordHash(domain.getPasswordHash());
         return entity;
     }
 
-    public static Cotizacion toDomain(CotizacionJpaEntity entity) {
+    public static ProductoHipotecario toDomain(ProductoHipotecarioJpaEntity entity) {
         if (entity == null) return null;
-        Cotizacion domain = new Cotizacion();
-        domain.setId(entity.getId());
-        domain.setVersion(entity.getVersion());
-        domain.setCliente(toDomain(entity.getCliente()));
-        domain.setEjecutivo(toDomain(entity.getEjecutivo()));
-        domain.setValorInmueble(entity.getValorInmueble());
-        domain.setCuotaInicial(entity.getCuotaInicial());
-        domain.setMontoPrestamo(entity.getMontoPrestamo());
-        domain.setPlazoMeses(entity.getPlazoMeses());
-        domain.setLtvPorcentaje(entity.getLtvPorcentaje());
-        domain.setTeaCalculada(entity.getTeaCalculada());
-        domain.setTeaPreferencialSolicitada(entity.getTeaPreferencialSolicitada());
-        domain.setCuotaMensualEstimada(entity.getCuotaMensualEstimada());
-        domain.setIngresosMensuales(entity.getIngresosMensuales());
-        domain.setDeudasMensuales(entity.getDeudasMensuales());
-        domain.setScoreCrediticio(entity.getScoreCrediticio());
-        domain.setDstiPorcentaje(entity.getDstiPorcentaje());
-        domain.setEstado(entity.getEstado());
-        domain.setFechaCreacion(entity.getFechaCreacion());
-        domain.setAprobador(toDomain(entity.getAprobador()));
-        domain.setComentarioDecision(entity.getComentarioDecision());
-        domain.setFechaDecision(entity.getFechaDecision());
+        return ProductoHipotecario.builder()
+                .productoId(entity.getProductoId())
+                .nombreProducto(entity.getNombreProducto())
+                .tasaInteresReferencial(entity.getTasaInteresReferencial())
+                .build();
+    }
+
+    public static ProductoHipotecarioJpaEntity toEntity(ProductoHipotecario domain) {
+        if (domain == null) return null;
+        ProductoHipotecarioJpaEntity entity = new ProductoHipotecarioJpaEntity();
+        entity.setProductoId(domain.getProductoId());
+        entity.setNombreProducto(domain.getNombreProducto());
+        entity.setTasaInteresReferencial(domain.getTasaInteresReferencial());
+        return entity;
+    }
+
+    public static SolicitudCredito toDomain(SolicitudCreditoJpaEntity entity) {
+        if (entity == null) return null;
+        SolicitudCredito domain = SolicitudCredito.builder()
+                .solicitudId(entity.getSolicitudId())
+                .numeroExpediente(entity.getNumeroExpediente())
+                .producto(toDomain(entity.getProducto()))
+                .ejecutivo(toDomain(entity.getEjecutivo()))
+                .gestorRiesgo(toDomain(entity.getGestorRiesgo()))
+                .montoSolicitado(entity.getMontoSolicitado())
+                .moneda(entity.getMoneda())
+                .plazoMeses(entity.getPlazoMeses())
+                .estadoActual(entity.getEstadoActual())
+                .fechaCreacion(entity.getFechaCreacion())
+                .version(entity.getVersion())
+                .build();
+
+        domain.getProducto().setTasaInteresReferencial(entity.getTasaAplicada());
+
+        if (entity.getParticipantes() != null) {
+            domain.setParticipantes(entity.getParticipantes().stream()
+                    .map(Mapper::toDomain)
+                    .collect(Collectors.toList()));
+        }
+
+        if (entity.getInmuebles() != null) {
+            domain.setInmuebles(entity.getInmuebles().stream()
+                    .map(Mapper::toDomain)
+                    .collect(Collectors.toList()));
+        }
+
+        if (entity.getHistorial() != null) {
+            domain.setHistorial(entity.getHistorial().stream()
+                    .map(Mapper::toDomain)
+                    .collect(Collectors.toList()));
+        }
+
         return domain;
     }
 
-    public static CotizacionJpaEntity toEntity(Cotizacion domain) {
+    public static SolicitudCreditoJpaEntity toEntity(SolicitudCredito domain) {
         if (domain == null) return null;
-        CotizacionJpaEntity entity = new CotizacionJpaEntity();
-        entity.setId(domain.getId());
-        entity.setVersion(domain.getVersion());
-        entity.setCliente(toEntity(domain.getCliente()));
+        SolicitudCreditoJpaEntity entity = new SolicitudCreditoJpaEntity();
+        entity.setSolicitudId(domain.getSolicitudId());
+        entity.setNumeroExpediente(domain.getNumeroExpediente());
+        entity.setProducto(toEntity(domain.getProducto()));
         entity.setEjecutivo(toEntity(domain.getEjecutivo()));
-        entity.setValorInmueble(domain.getValorInmueble());
-        entity.setCuotaInicial(domain.getCuotaInicial());
-        entity.setMontoPrestamo(domain.getMontoPrestamo());
+        entity.setGestorRiesgo(toEntity(domain.getGestorRiesgo()));
+        entity.setMontoSolicitado(domain.getMontoSolicitado());
+        entity.setTasaAplicada(domain.getProducto().getTasaInteresReferencial());
+        entity.setMoneda(domain.getMoneda());
         entity.setPlazoMeses(domain.getPlazoMeses());
-        entity.setLtvPorcentaje(domain.getLtvPorcentaje());
-        entity.setTeaCalculada(domain.getTeaCalculada());
-        entity.setTeaPreferencialSolicitada(domain.getTeaPreferencialSolicitada());
-        entity.setCuotaMensualEstimada(domain.getCuotaMensualEstimada());
-        entity.setIngresosMensuales(domain.getIngresosMensuales());
-        entity.setDeudasMensuales(domain.getDeudasMensuales());
-        entity.setScoreCrediticio(domain.getScoreCrediticio());
-        entity.setDstiPorcentaje(domain.getDstiPorcentaje());
-        entity.setEstado(domain.getEstado());
+        entity.setEstadoActual(domain.getEstadoActual());
         entity.setFechaCreacion(domain.getFechaCreacion());
-        entity.setAprobador(toEntity(domain.getAprobador()));
-        entity.setComentarioDecision(domain.getComentarioDecision());
-        entity.setFechaDecision(domain.getFechaDecision());
+        entity.setVersion(domain.getVersion());
+
+        if (domain.getParticipantes() != null) {
+            entity.setParticipantes(domain.getParticipantes().stream()
+                    .map(p -> {
+                        SolicitudClienteJpaEntity pEnt = toEntity(p);
+                        pEnt.setSolicitud(entity);
+                        return pEnt;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
+        if (domain.getInmuebles() != null) {
+            entity.setInmuebles(domain.getInmuebles().stream()
+                    .map(i -> {
+                        InmuebleGarantiaJpaEntity iEnt = toEntity(i);
+                        iEnt.setSolicitud(entity);
+                        return iEnt;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
+        if (domain.getHistorial() != null) {
+            entity.setHistorial(domain.getHistorial().stream()
+                    .map(h -> {
+                        SolicitudHistorialEstadoJpaEntity hEnt = toEntity(h);
+                        hEnt.setSolicitud(entity);
+                        return hEnt;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
         return entity;
     }
 
-    public static AuditoriaCotizacion toDomain(AuditoriaCotizacionJpaEntity entity) {
+    public static Participante toDomain(SolicitudClienteJpaEntity entity) {
         if (entity == null) return null;
-        AuditoriaCotizacion domain = new AuditoriaCotizacion();
-        domain.setId(entity.getId());
-        domain.setCotizacion(toDomain(entity.getCotizacion()));
-        domain.setAccion(entity.getAccion());
-        domain.setTeaAnterior(entity.getTeaAnterior());
-        domain.setTeaNueva(entity.getTeaNueva());
-        domain.setUsuarioResponsable(entity.getUsuarioResponsable());
-        domain.setFechaEvento(entity.getFechaEvento());
-        return domain;
+        Cliente c = new Cliente();
+        if (entity.getCliente() != null) {
+            c.setClienteId(entity.getCliente().getClienteId());
+            c.setNumeroDocumento(entity.getCliente().getNumeroDocumento());
+            c.setIngresoMensualNeto(entity.getIngresoEvaluado());
+            c.setNombres(entity.getCliente().getNombres());
+            c.setApellidos(entity.getCliente().getApellidos());
+            c.setTipoDocumento(entity.getCliente().getTipoDocumento());
+            c.setEmail(entity.getCliente().getEmail());
+        }
+        return Participante.builder()
+                .tipoParticipacion(entity.getTipoParticipacion())
+                .cliente(c)
+                .build();
     }
 
-    public static AuditoriaCotizacionJpaEntity toEntity(AuditoriaCotizacion domain) {
+    public static SolicitudClienteJpaEntity toEntity(Participante domain) {
         if (domain == null) return null;
-        AuditoriaCotizacionJpaEntity entity = new AuditoriaCotizacionJpaEntity();
-        entity.setId(domain.getId());
-        entity.setCotizacion(toEntity(domain.getCotizacion()));
-        entity.setAccion(domain.getAccion());
-        entity.setTeaAnterior(domain.getTeaAnterior());
-        entity.setTeaNueva(domain.getTeaNueva());
-        entity.setUsuarioResponsable(domain.getUsuarioResponsable());
-        entity.setFechaEvento(domain.getFechaEvento());
+        SolicitudClienteJpaEntity entity = new SolicitudClienteJpaEntity();
+        
+        SolicitudClienteId id = new SolicitudClienteId();
+        if (domain.getCliente() != null) {
+            id.setClienteId(domain.getCliente().getClienteId());
+            ClienteJpaEntity c = new ClienteJpaEntity();
+            c.setClienteId(domain.getCliente().getClienteId());
+            c.setNumeroDocumento(domain.getCliente().getNumeroDocumento());
+            c.setIngresoMensualNeto(domain.getCliente().getIngresoMensualNeto());
+            c.setNombres(domain.getCliente().getNombres());
+            c.setApellidos(domain.getCliente().getApellidos());
+            c.setTipoDocumento(domain.getCliente().getTipoDocumento());
+            c.setEmail(domain.getCliente().getEmail());
+            entity.setCliente(c);
+        }
+        entity.setId(id);
+        
+        entity.setTipoParticipacion(domain.getTipoParticipacion());
+        entity.setIngresoEvaluado(domain.getCliente().getIngresoMensualNeto());
+        return entity;
+    }
+
+    public static Inmueble toDomain(InmuebleGarantiaJpaEntity entity) {
+        if (entity == null) return null;
+        return Inmueble.builder()
+                .inmuebleId(entity.getInmuebleId())
+                .tipoInmueble(entity.getTipoInmueble())
+                .direccion(entity.getDireccion())
+                .valorComercial(entity.getValorComercial())
+                .valorTasacion(entity.getValorTasacion())
+                .partidaRegistral(entity.getPartidaRegistral())
+                .build();
+    }
+
+    public static InmuebleGarantiaJpaEntity toEntity(Inmueble domain) {
+        if (domain == null) return null;
+        InmuebleGarantiaJpaEntity entity = new InmuebleGarantiaJpaEntity();
+        entity.setInmuebleId(domain.getInmuebleId());
+        entity.setTipoInmueble(domain.getTipoInmueble());
+        entity.setDireccion(domain.getDireccion());
+        entity.setValorComercial(domain.getValorComercial());
+        entity.setValorTasacion(domain.getValorTasacion());
+        entity.setPartidaRegistral(domain.getPartidaRegistral());
+        return entity;
+    }
+
+    public static HistorialEstado toDomain(SolicitudHistorialEstadoJpaEntity entity) {
+        if (entity == null) return null;
+        return HistorialEstado.builder()
+                .historialId(entity.getHistorialId())
+                .estadoAnterior(entity.getEstadoAnterior())
+                .estadoNuevo(entity.getEstadoNuevo())
+                .fechaCambio(entity.getFechaCambio())
+                .comentario(entity.getComentario())
+                .empleadoId(entity.getEmpleado() != null ? entity.getEmpleado().getEmpleadoId() : null)
+                .build();
+    }
+
+    public static SolicitudHistorialEstadoJpaEntity toEntity(HistorialEstado domain) {
+        if (domain == null) return null;
+        SolicitudHistorialEstadoJpaEntity entity = new SolicitudHistorialEstadoJpaEntity();
+        entity.setHistorialId(domain.getHistorialId());
+        entity.setEstadoAnterior(domain.getEstadoAnterior());
+        entity.setEstadoNuevo(domain.getEstadoNuevo());
+        entity.setFechaCambio(domain.getFechaCambio());
+        entity.setComentario(domain.getComentario());
+        if (domain.getEmpleadoId() != null) {
+            EmpleadoJpaEntity emp = new EmpleadoJpaEntity();
+            emp.setEmpleadoId(domain.getEmpleadoId());
+            entity.setEmpleado(emp);
+        }
         return entity;
     }
 }

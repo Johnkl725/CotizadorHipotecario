@@ -1,47 +1,44 @@
-# Arquitectura — @ArchitectAgent
+# Arquitectura actual: Angular + solicitudes V2
 
-## Componentes y límites
+## Capas
 
-```mermaid
-flowchart LR
-    B[Navegador UMBRAL] --> S[Spring Security: sesión + CSRF]
-    S --> C[Controladores / DTOs validados]
-    C --> M[CalculoService sin estado ni SQL]
-    C --> Q[CotizacionService transaccional]
-    Q --> R[Repositorios JPA]
-    R --> P[Hikari: máximo 12 conexiones]
-    P --> D[SQL Server / Cotizador]
-```
+- Angular: login, guards por rol, simulador y bandeja de solicitudes. La SPA se empaqueta en el JAR y usa el mismo origen que la API.
+- Adaptadores HTTP: DTOs validados, identidad desde Authentication y respuestas que excluyen hashes.
+- Casos de uso: roles, propiedad de cartera, catálogo de productos/clientes, registro, consulta y decisiones.
+- Dominio: entidades sin Spring/JPA, cálculo francés con BigDecimal, LTV/DSTI y máquina de estados.
+- Adaptadores JPA: agregado de solicitud, referencias gestionadas, snapshots financieros y carga dentro de transacciones. Open-in-view desactivado.
+- SQL Server: esquema Cotizador, FK calificadas, índices de cartera/estado y migración repetible.
 
-Monolito modular en capas; no se necesitan microservicios para 50–60 usuarios. Los controladores no acceden directamente a SQL. La simulación usa BigDecimal y una raíz duodécima de Newton acotada a 64 iteraciones. No toma conexión ni bloqueo SQL y no almacena estado entre peticiones. El navegador calcula solo formato y representación visual.
+## Autenticación y autorización
 
-## Concurrencia
+Spring Security valida BCrypt y crea una sesión de servidor. La SPA obtiene CSRF en /api/csrf antes de login y operaciones de escritura. La sesión rota al autenticar; logout invalida la sesión y elimina JSESSIONID. Cookie HttpOnly/SameSite; Secure en prod. Basic Auth está deshabilitado.
 
-- Tomcat: hasta 100 hilos y cola de aceptación de 100; máximo 1.000 conexiones TCP. Estos límites acotan recursos, no son garantías de rendimiento.
-- Hikari: 12 conexiones, mínimo 2, espera de adquisición 3 segundos. No abrir 60 conexiones por tener 60 usuarios. `DB_POOL_SIZE` permite ajustar tras medir SQL.
-- Transacciones de escritura de hasta 10 segundos, consultas de hasta 5 segundos, socket JDBC de 15 segundos. Los límites aplican a distintas etapas; no equivalen a un deadline HTTP global.
-- Páginas de 12 filas, máximo 50. Índices compuestos para ejecutivo/fecha y estado/fecha. `EntityGraph` carga asociaciones to-one sin N+1; `open-in-view=false` impide SQL durante el render.
-- `@Version` usa un BIGINT. Tanto versión recibida como UPDATE condicionado previenen pérdidas de actualización. Una carrera devuelve un éxito y un 409, sin bloquear toda la cartera.
-- Índice único DNI evita duplicación de clientes concurrentes. Si dos altas del mismo DNI colisionan, una recibe 409 y puede repetir; no se reintentan escrituras silenciosamente.
-- Se deshabilitan botones durante el envío. No existe garantía exactly-once para repetir un POST de creación después de perder su respuesta: verificar la cartera antes de reenviar.
-- Cierre ordenado, sesiones de 30 minutos, health con estado sin detalles SQL.
+Los controladores reciben la matrícula autenticada. No reciben empleadoId/gestorId como autoridad. El caso de uso vuelve a validar el rol y la propiedad. Un ejecutivo solo lista/consulta sus expedientes. Los gestores consultan la cartera de la entidad; solo quien toma el expediente puede decidir.
 
-## Seguridad y operación
+Los clientes HTTP reciben DTOs públicos de empleado, nunca passwordHash. Los endpoints de Actuator, salvo salud, no son accesibles públicamente. No se habilitan credenciales CORS.
 
-BCrypt coste 12 al iniciar sesión; consultas autenticadas reutilizan la sesión y no vuelven a calcular hashes. CSRF activo en formularios y JSON, cookies HttpOnly/SameSite, CSP sin scripts externos y autorización por rol en rutas y métodos. Los ejecutivos consultan únicamente sus propias cotizaciones. Errores normalizados sin SQL ni claves. Cuenta SQL local con SELECT/INSERT/UPDATE, sin DDL ni DELETE; migraciones administrativas separadas.
+## Persistencia y concurrencia
 
-`/actuator/health` es público sin detalles. Resto de endpoints Actuator bloqueados por seguridad web; para instrumentación de operación configurar un canal privado autenticado, nunca exponer métricas públicamente. Los logs no contienen payloads de clientes. Para producción usar HTTPS, `server.servlet.session.cookie.secure=true`, certificado SQL confiable (`trustServerCertificate=false`), un gestor de secretos y aprovisionamiento de usuarios fuera del perfil `local`.
+Registro y decisiones son transaccionales. Al registrar se leen producto y clientes del catálogo; se conservan tasa_aplicada e ingreso_evaluado. Las fechas y número de expediente se generan en servidor.
 
-La versión actual usa sesiones en memoria. Para escalar horizontalmente requiere afinidad de sesión en el balanceador o incorporar Spring Session con Redis; sin eso cambiar de réplica pierde autenticación. Repartir el presupuesto de conexiones entre réplicas. No se ha implementado failover SQL ni se promete disponibilidad ante caída de la base.
+En transiciones se modifica la entidad gestionada y se agregan entradas de historial. No se reemplazan ni borran los hijos persistidos. @Version incrementa la versión; el cliente debe enviar la versión leída. Tanto el control explícito como el UPDATE optimista evitan decisiones concurrentes. Un conflicto devuelve 409.
 
-## Ensayo de carga reproducible
+La paginación aplica al agregado raíz, sin fetch join de varias colecciones. Batch fetching de asociaciones está limitado a 50. La respuesta se construye dentro de la transacción.
 
-`scripts/load_test.py` crea 60 clientes HTTP con cookies independientes y sincroniza su comienzo con una barrera. Precarga sesiones para separar el coste de login (reportado aparte). Cada cliente realiza 20 simulaciones. El modo persistente además intercala 4 lecturas paginadas, guarda una cotización, solicita tasa, consulta la bandeja y aprueba con otra sesión. Son 1.680 peticiones medidas para 60 participantes, sin pausa entre solicitudes. Los datos de prueba quedan identificados como `Carga <run>`.
+Estados: REGISTRADO → EN_EVALUACION → APROBADO o RECHAZADO. No hay reapertura de decisiones finales.
 
-El generador y servidor comparten equipo y usan loopback: no reproduce latencia de red, múltiples equipos, millones de registros ni una jornada completa. Los percentiles y errores reales quedan en `artifacts/load-mixed.json`. Para dimensionar producción, repetir en hardware de destino con datos representativos y carga sostenida; medir CPU, memoria, conexiones pendientes y latencia SQL.
+## Cálculo y límites
 
-## Alcance funcional
+Método francés, TEA convertida a tasa mensual con raíz duodécima, BigDecimal con precisión 34 y cuota a dos decimales. El LTV utiliza la suma del menor valor comercial/tasación; DSTI utiliza cuota e ingresos consolidados. Los límites se comparan sin redondear los ratios de presentación. No incluye otras deudas ni seguros.
 
-Solo tasas fijas y moneda PEN. Umbrales ilustrativos parametrizados, no score predictivo ni integración real con centrales de riesgo o BCRP. Las snapshots conservan ingreso/deuda/score evaluados. La identidad del cliente no se edita silenciosamente. El historial tiene una solicitud y una decisión por cotización, con actor/comentario/fecha; una bitácora completa de eventos y versionado de políticas son evoluciones posteriores.
+Hasta cinco participantes, exactamente un titular y sin clientes repetidos; hasta cinco garantías. Moneda PEN y plazo 1–360. El registro acepta escenarios que requieren evaluación; la aprobación exige LTV ≤ 90% y DSTI ≤ 40%.
 
-Referencias técnicas: [Spring: pool Hikari](https://docs.spring.io/spring-boot/how-to/data-access.html), [Spring Security: CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html).
+## Operación
+
+El arranque local usa Podman, cuenta SQL restringida y claves aleatorias cifradas con DPAPI. La migración no elimina tablas. Los datos demostrativos son optativos y no sobrescriben datos existentes.
+
+Producción requiere TLS, certificado SQL confiable, credenciales externas, aprovisionamiento de cuentas y validación comercial. El perfil prod activa cookies Secure. Las sesiones son locales a la instancia; no se ha configurado un almacén distribuido ni un despliegue público.
+
+## Evidencia
+
+RolesWorkflowIntegrationTest verifica login real, CSRF, permisos, aislamiento, snapshots, auditoría, validación y concurrencia en H2. Test-RoleBrowser.ps1 cubre registro, aprobación, rechazo, recarga, protección de rutas y logout con dos sesiones contra SQL Server. No equivale a un ensayo de capacidad o alta disponibilidad.

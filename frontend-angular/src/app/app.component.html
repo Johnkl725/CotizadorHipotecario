@@ -1,0 +1,18 @@
+@if(auth.user(); as user){
+<a class="skip-link" href="#main-content">Saltar al contenido</a>
+<aside class="sidebar">
+  <a class="brand" [routerLink]="auth.isExecutive()?'/simulador':'/aprobaciones'" aria-label="Interbank, inicio"><span class="brand-mark"><app-icon name="home" /></span><span>Interbank<span class="brand-caption">BANCA HIPOTECARIA</span></span></a>
+  <div class="workspace-label">{{auth.isExecutive()?'ESPACIO COMERCIAL':'GESTIÓN DE RIESGOS'}}</div>
+  <nav aria-label="Navegación principal">
+    @if(auth.isExecutive()){<a routerLink="/simulador" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon name="calculator" />Simulador<span class="nav-dot"></span></a>}
+    <a routerLink="/aprobaciones" routerLinkActive="active" ariaCurrentWhenActive="page"><app-icon [name]="auth.isManager()?'shield':'folder'" />{{auth.isExecutive()?'Mis solicitudes':'Bandeja de riesgos'}}<span class="nav-dot"></span></a>
+  </nav>
+  <div class="sidebar-note"><app-icon name="shield" /><strong>{{auth.isExecutive()?'Acompaña cada proyecto.':'Decide con información.'}}</strong><p>{{auth.isExecutive()?'Simula, registra y sigue el avance de las solicitudes de tus clientes.':'Revisa garantías, capacidad de pago e historial antes de registrar tu decisión.'}}</p><span>CRÉDITOS EN SOLES · PEN</span></div>
+  <div class="sidebar-footer"><span class="mini-mark">I.</span><div>Plataforma de créditos<small>{{auth.roleLabel()}}</small></div></div>
+</aside>
+<div class="app-workspace">
+  <header class="topbar"><div class="breadcrumb">Banca personas<span>/</span><strong>{{auth.isExecutive()?'Originación hipotecaria':'Evaluación crediticia'}}</strong></div><div class="account-button"><span class="avatar"><app-icon name="user" /></span><span>{{user.nombres}} {{user.apellidos}}<small>{{auth.roleLabel()}}</small></span><button class="button secondary logout-button" (click)="logout()" [disabled]="busy">{{busy?'Saliendo...':'Cerrar sesión'}}</button></div></header>
+  <main id="main-content" tabindex="-1">@if(error){<div class="notice error" role="alert">{{error}}</div>}<router-outlet /></main>
+  <footer class="workspace-footer"><span>INTERBANK <span class="footer-divider">/</span> Gestión de créditos hipotecarios</span><span>Importes expresados en soles (S/)</span></footer>
+</div>
+}@else{<router-outlet />}

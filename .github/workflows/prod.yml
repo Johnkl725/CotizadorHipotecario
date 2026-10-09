@@ -19,6 +19,21 @@ jobs:
         distribution: 'temurin'
         cache: gradle
         
+    - name: Set up Node for Angular
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: frontend-angular/package-lock.json
+
+    - name: Install frontend dependencies
+      run: npm ci
+      working-directory: frontend-angular
+
+    - name: Test frontend
+      run: npm test -- --watch=false --browsers=ChromeHeadless
+      working-directory: frontend-angular
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
       

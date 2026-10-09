@@ -1,21 +1,40 @@
 package com.example.newcotizador.infrastructure.adapter.out.persistence.entity;
 
-import com.example.newcotizador.domain.model.*;
-
 import jakarta.persistence.*;
-import java.math.BigDecimal;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
-@Entity @Table(schema = "Cotizador", name = "Clientes")
-@Getter @Setter @NoArgsConstructor
+import java.math.BigDecimal;
+
+@Entity
+@Table(schema = "Cotizador", name = "cliente")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ClienteJpaEntity {
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_cliente") private Integer id;
-    @Column(nullable = false, unique = true, length = 8) private String dni;
-    @Column(nullable = false, length = 100) private String nombres;
-    @Column(nullable = false, length = 100) private String apellidos;
-    @Column(name = "score_crediticio") private Integer scoreCrediticio;
-    @Column(name = "ingresos_mensuales", precision = 18, scale = 2) private BigDecimal ingresosMensuales;
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "cliente_id")
+    private Integer clienteId;
+    
+    @Column(name = "tipo_documento", nullable = false, length = 3)
+    @org.hibernate.annotations.JdbcTypeCode(java.sql.Types.CHAR)
+    private String tipoDocumento;
+    
+    @Column(name = "numero_documento", nullable = false, length = 15)
+    private String numeroDocumento;
+    
+    @Column(name = "nombres", nullable = false, length = 50)
+    private String nombres;
+    
+    @Column(name = "apellidos", nullable = false, length = 50)
+    private String apellidos;
+    
+    @Column(name = "email", length = 80)
+    private String email;
+    
+    @Column(name = "ingreso_mensual_neto", nullable = false, precision = 12, scale = 2)
+    private BigDecimal ingresoMensualNeto;
 }

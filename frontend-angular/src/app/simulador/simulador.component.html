@@ -1,0 +1,94 @@
+<div class="page-heading">
+  <div><p class="eyebrow">ORIGINACIÓN DE CRÉDITOS</p><h1>Simulador hipotecario</h1><p class="muted">Dale forma al próximo hogar de tu cliente.</p></div>
+  <span class="badge">Financiamiento en soles</span>
+</div>
+<div class="journey" aria-label="Etapas de la solicitud"><span class="current"><b>01</b> Simulación</span><i></i><span><b>02</b> Registro de solicitud</span><i></i><span><b>03</b> Evaluación de riesgos</span></div>
+@if(error){<div class="notice error" role="alert">{{error}}</div>}
+<form [formGroup]="simuladorForm" (ngSubmit)="onSubmit()" class="simulator-layout">
+  <div class="form-column">
+    <section class="panel">
+      <div class="panel-header"><span class="section-icon"><app-icon name="calculator" /></span><div><h2>Condiciones del crédito</h2><p>Define el escenario de financiamiento.</p></div><span class="section-number">01</span></div>
+      <div class="panel-body">
+        <div class="product-strip"><span class="product-icon"><app-icon name="home" /></span><div><strong>Crédito hipotecario</strong><span>Compra de vivienda · Cuotas fijas</span></div><span class="currency-tag">PEN</span></div>
+        <div class="field-grid">
+          <label class="full" for="product-id">Producto hipotecario<select id="product-id" formControlName="productoId" (change)="selectProduct()"><option [ngValue]="null">Selecciona un producto</option>@for(product of productos;track product.productoId){<option [ngValue]="product.productoId">{{product.nombreProducto}} · TEA {{product.tasaInteresReferencial}}%</option>}</select></label>
+          <label for="property-value">Valor de la vivienda<span class="input-affix"><span>S/</span><input id="property-value" type="number" formControlName="valorInmueble" min="1" max="999999999" step="0.01" [attr.aria-invalid]="invalid(simuladorForm, 'valorInmueble')" /></span>@if(invalid(simuladorForm, 'valorInmueble')){<span class="field-error">Ingresa un valor mayor que cero.</span>}</label>
+          <label for="down-payment">Cuota inicial<span class="input-affix"><span>S/</span><input id="down-payment" type="number" formControlName="cuotaInicial" min="0" step="0.01" [attr.aria-invalid]="!validFinance" /></span><span class="field-help">{{ initialPercent | number:'1.0-1' }}% del valor de la vivienda</span></label>
+          <label for="term">Plazo del crédito<select id="term" formControlName="plazoMeses"><option [ngValue]="60">5 años · 60 meses</option><option [ngValue]="120">10 años · 120 meses</option><option [ngValue]="180">15 años · 180 meses</option><option [ngValue]="240">20 años · 240 meses</option><option [ngValue]="300">25 años · 300 meses</option><option [ngValue]="360">30 años · 360 meses</option></select></label>
+          <label for="annual-rate">Tasa efectiva anual (TEA)<span class="input-affix suffix"><input id="annual-rate" readonly type="number" formControlName="tasaInteres" min="0" max="100" step="0.01" /><span>%</span></span><span class="field-help">Tasa del catálogo de la entidad.</span></label>
+        </div>
+        @if (!validFinance) { <p class="field-error" role="alert">La inicial debe ser menor al valor de la vivienda y los importes deben ser válidos.</p> }
+        <div class="financing-strip"><span>Monto a financiar</span><strong>{{ validFinance ? (principal | currency:'PEN':'S/ ':'1.2-2') : '—' }}</strong></div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><span class="section-icon"><app-icon name="user" /></span><div><h2>Participantes del crédito</h2><p>Información del titular y sus codeudores.</p></div><span class="section-number">02</span></div>
+      <div class="panel-body">
+        <label for="client-search" class="client-search">Buscar cliente por nombre o documento<input id="client-search" type="search" placeholder="Escribe un nombre o documento" (input)="searchClients($any($event.target).value)" [disabled]="busy" /></label>
+        <div formArrayName="participantes">
+          @for (p of participantes.controls; track p; let i = $index) {
+            <div [formGroupName]="i" class="repeat-block">
+              <div class="inline-heading"><span class="participant-label"><span class="person-number">{{ i + 1 }}</span>{{ i === 0 ? 'Titular del crédito' : 'Codeudor ' + i }}</span>@if(i > 0){<button type="button" class="icon-button" [disabled]="busy" (click)="removeParticipante(i)" [attr.aria-label]="'Eliminar codeudor ' + i"><app-icon name="trash" /></button>}<span class="badge" *ngIf="i === 0">Principal</span></div>
+              <div class="field-grid">
+                <label class="full" [for]="'client-'+i">Cliente registrado<select [id]="'client-'+i" formControlName="clienteId" (change)="selectClient(i)" [attr.aria-invalid]="invalid(p,'clienteId')"><option [ngValue]="null">Selecciona al cliente</option>@for(client of clientes;track client.clienteId){<option [ngValue]="client.clienteId">{{client.nombres}} {{client.apellidos}} · {{client.numeroDocumento}}</option>}</select></label>
+                <label [for]="'dni-'+i">Documento de identidad<input [id]="'dni-'+i" formControlName="numeroDocumento" readonly placeholder="Documento del cliente" [attr.aria-invalid]="invalid(p, 'numeroDocumento')" />@if(invalid(p, 'numeroDocumento')){<span class="field-error">Selecciona un cliente registrado.</span>}</label>
+                <label [for]="'first-'+i">Nombres<input [id]="'first-'+i" formControlName="nombres" readonly placeholder="Nombres del cliente" maxlength="50" [attr.aria-invalid]="invalid(p, 'nombres')" /></label>
+                <label [for]="'last-'+i">Apellidos<input [id]="'last-'+i" formControlName="apellidos" readonly placeholder="Apellidos del cliente" maxlength="50" [attr.aria-invalid]="invalid(p, 'apellidos')" /></label>
+                <label class="full" [for]="'income-'+i">Ingreso mensual neto<span class="input-affix"><span>S/</span><input [id]="'income-'+i" type="number" formControlName="ingresoMensualNeto" readonly placeholder="0.00" min="0.01" step="0.01" [attr.aria-invalid]="invalid(p, 'ingresoMensualNeto')" /></span></label>
+              </div>
+              @if(p.invalid && submitted){<p class="field-error">Completa todos los datos de este participante con su información registrada.</p>}
+            </div>
+          }
+        </div>
+        @if(duplicateClients){<p class="field-error">Cada participante debe tener un código de cliente diferente.</p>}
+        <button class="text-button" type="button" [disabled]="busy || participantes.length >= 5" (click)="addParticipante()"><app-icon name="plus" />Agregar codeudor</button>
+        <p class="fine">Los ingresos provienen del registro de clientes y se conservan en la solicitud.</p>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><span class="section-icon"><app-icon name="home" /></span><div><h2>Garantía inmobiliaria</h2><p>Identifica los inmuebles que respaldan el crédito.</p></div><span class="section-number">03</span></div>
+      <div class="panel-body">
+        <div formArrayName="inmuebles">
+          @for(inv of inmuebles.controls; track inv; let i = $index) {
+            <div [formGroupName]="i" class="repeat-block">
+              <div class="inline-heading"><h3>Inmueble {{ i + 1 }}</h3>@if(i > 0){<button class="icon-button" type="button" [disabled]="busy" (click)="removeInmueble(i)" [attr.aria-label]="'Eliminar inmueble ' + (i+1)"><app-icon name="trash" /></button>}</div>
+              <div class="field-grid">
+                <label [for]="'type-'+i">Tipo de inmueble<select [id]="'type-'+i" formControlName="tipoInmueble"><option value="DEPARTAMENTO">Departamento</option><option value="CASA">Casa</option><option value="TERRENO">Terreno</option></select></label>
+                <label [for]="'registry-'+i">Partida registral <span class="optional">Opcional</span><input [id]="'registry-'+i" formControlName="partidaRegistral" placeholder="Número de partida" maxlength="30" /></label>
+                <label class="full" [for]="'address-'+i">Dirección<input [id]="'address-'+i" formControlName="direccion" placeholder="Av. / Calle, número, distrito" maxlength="150" [attr.aria-invalid]="invalid(inv, 'direccion')" /></label>
+                <label [for]="'commercial-'+i">Valor comercial<span class="input-affix"><span>S/</span><input [id]="'commercial-'+i" type="number" formControlName="valorComercial" min="1" step="0.01" /></span></label>
+                <label [for]="'appraisal-'+i">Valor de tasación<span class="input-affix"><span>S/</span><input [id]="'appraisal-'+i" type="number" formControlName="valorTasacion" placeholder="Opcional" min="1" step="0.01" /></span></label>
+              </div>
+              @if(inv.invalid && submitted){<p class="field-error">Completa la dirección y los valores válidos del inmueble.</p>}
+            </div>
+          }
+        </div>
+        <button class="text-button" type="button" [disabled]="busy || inmuebles.length >= 5" (click)="addInmueble()"><app-icon name="plus" />Agregar inmueble</button>
+        <div class="divider"></div>
+        <p class="fine">La evaluación utilizará los valores de las garantías registradas y la tasa del producto seleccionado.</p>
+      </div>
+    </section>
+
+    @if(saved){<div class="notice" role="status"><app-icon name="check" /><div>Solicitud {{ saved.numeroExpediente }} registrada correctamente.<br /><a routerLink="/aprobaciones">Ver solicitud</a></div></div>}
+    <div class="submit-row"><p class="fine"><app-icon name="shield" /> El registro queda sujeto a evaluación crediticia.</p><button class="button primary" type="submit" [disabled]="busy || !!saved || catalogLoading || !productos.length">{{ busy ? 'Registrando…' : saved ? 'Solicitud registrada' : 'Registrar solicitud' }}<app-icon [name]="saved ? 'check' : 'arrow'" /></button></div>
+  </div>
+  <aside class="summary-column" aria-label="Resumen de simulación">
+    <section class="summary-card">
+      <div class="summary-title"><span>RESUMEN DE SIMULACIÓN</span><app-icon name="chart" /></div>
+      <div class="payment-block"><span>Tu cuota mensual estimada</span><div class="payment">{{ payment !== null ? (payment | currency:'PEN':'S/ ':'1.2-2') : '—' }}</div><span class="payment-caption">{{ values.plazoMeses }} cuotas · Tasa fija referencial</span></div>
+      <div class="summary-details"><div><span>Monto del préstamo</span><strong>{{ validFinance ? (principal | currency:'PEN':'S/ ':'1.2-2') : '—' }}</strong></div><div><span>Cuota inicial</span><strong>{{ values.cuotaInicial | currency:'PEN':'S/ ':'1.2-2' }}</strong></div><div><span>TEA referencial</span><strong>{{ values.tasaInteres | number:'1.2-2' }}%</strong></div><div><span>Plazo</span><strong>{{ values.plazoMeses / 12 | number:'1.0-1' }} años</strong></div></div>
+      <div class="composition"><div class="composition-bar" aria-hidden="true"><span [style.width.%]="100 - initialPercent"></span></div><div class="composition-legend"><span><i></i>Financiamiento {{ ltv !== null ? (ltv | number:'1.0-1') : '—' }}%</span><span><i></i>Inicial {{ initialPercent | number:'1.0-1' }}%</span></div></div>
+      <div class="summary-total"><span>Intereses estimados</span><strong>{{ interest !== null ? (interest | currency:'PEN':'S/ ':'1.2-2') : '—' }}</strong></div>
+    </section>
+    <section class="panel risk-card">
+      <div class="risk-title"><app-icon name="shield" /><h2>Indicadores del escenario</h2></div>
+      <div class="risk-row"><div><span>Financiamiento / vivienda</span><small>Ratio LTV · Referencia ≤ 90%</small></div><strong [class.risk-warning]="ltv !== null && ltv > 90">{{ ltv !== null ? (ltv | number:'1.1-1') + '%' : '—' }}</strong></div>
+      <div class="risk-track"><span [class.over]="ltv !== null && ltv > 90" [style.width.%]="ltv === null ? 0 : (ltv > 100 ? 100 : ltv)"></span></div>
+      <div class="risk-row"><div><span>Cuota / ingreso neto</span><small>Ratio DSTI · Referencia ≤ 40%</small></div><strong [class.risk-warning]="dsti !== null && dsti > 40">{{ dsti !== null ? (dsti | number:'1.1-1') + '%' : '—' }}</strong></div>
+      <div class="risk-track"><span [class.over]="dsti !== null && dsti > 40" [style.width.%]="dsti === null ? 0 : (dsti > 100 ? 100 : dsti)"></span></div>
+      @if(dsti === null){<p class="risk-note">Selecciona al titular para estimar su capacidad de pago.</p>}@else if((ltv !== null && ltv > 90) || dsti > 40){<p class="risk-note risk-warning">Este escenario supera uno de los límites de referencia.</p>}@else{<p class="risk-note">Escenario dentro de los límites de referencia. Sujeto a validación.</p>}
+      @if(guaranteeTotal > 0 && guaranteeTotal !== values.valorInmueble){<p class="risk-note">El valor de las garantías difiere del escenario. La evaluación utilizará el menor valor entre comercial y tasación de cada inmueble.</p>}
+    </section>
+    <div class="summary-footnote"><app-icon name="info" /><p>Simulación orientativa, no constituye una oferta. No incluye seguros, comisiones ni otras deudas. La cuota y los indicadores definitivos se validan en la evaluación.</p></div>
+  </aside>
+</form>
